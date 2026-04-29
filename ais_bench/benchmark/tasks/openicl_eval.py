@@ -1,6 +1,7 @@
 import argparse
 import copy
 import fnmatch
+import importlib.util
 import threading
 import math
 import os
@@ -9,7 +10,9 @@ import statistics
 import sys
 import time
 from collections import Counter
+from functools import lru_cache
 from inspect import signature
+from pathlib import Path
 from typing import List
 import mmap
 import orjson
@@ -47,6 +50,34 @@ TYPE_DEFAULT_MAP = {
     int: 0,
     float: 0,
 }
+
+
+@lru_cache(maxsize=32)
+def _evaluator_requires_llm_judge(evaluator_type: str) -> bool:
+    """检查评测器是否需要 LLM 打分模型。
+
+    两级检测：
+      1. 类型名直接包含 LLMJudgeEvaluator（如直接使用）
+      2. 扫描评测器源码是否引用了 LLMJudgeEvaluator（如 ExamDynamicEvaluator 等包装器）
+
+    任何未来新增的评测器只要在其源码中引用了 LLMJudgeEvaluator，都会被自动检测到。
+    """
+    # 第一级：类型名直接匹配
+    if "LLMJudgeEvaluator" in evaluator_type:
+        return True
+
+    # 第二级：解析模块路径，扫描源码
+    try:
+        module_name = evaluator_type.rsplit(".", 1)[0]
+        spec = importlib.util.find_spec(module_name)
+        if spec and spec.origin and spec.origin.endswith(".py"):
+            source = Path(spec.origin).read_text(encoding="utf-8")
+            if "LLMJudgeEvaluator" in source:
+                return True
+    except Exception:
+        pass
+
+    return False
 
 
 @TASKS.register_module()
@@ -356,10 +387,11 @@ class OpenICLEvalTask(BaseTask):
                 self.eval_cfg["evaluator"].update(
                     {"is_fc_model": self.model_cfg.get("returns_tool_calls")}
                 )
-            if "LLMJudgeEvaluator" in self.eval_cfg["evaluator"]["type"]:
+            if _evaluator_requires_llm_judge(self.eval_cfg["evaluator"]["type"]):
                 if not os.environ.get("SCORE_MODEL_NAME"):
                     raise ValueError(
-                        "LLMJudgeEvaluator 未配置打分模型：请设置 SCORE_MODEL_NAME 等环境变量。"
+                        f"{self.eval_cfg['evaluator']['type'].split('.')[-1]} "
+                        "未配置打分模型：请设置 SCORE_MODEL_NAME 等环境变量。"
                     )
             icl_evaluator: BaseEvaluator = ICL_EVALUATORS.build(
                 self.eval_cfg["evaluator"]

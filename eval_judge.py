@@ -92,9 +92,11 @@ def parse_args():
 
 # ── LLM 评估器检测 ───────────────────────────────────────────────────
 def detect_evaluator_type(suite_name: str) -> str:
-    """扫描 suite 配置文件，检测 evaluator 是否为 LLMJudgeEvaluator。
+    """扫描 suite 配置文件，检测 evaluator 是否需要 LLM 打分模型。
 
-    搜索 ais_bench/benchmark/configs/datasets/ 下匹配 {suite_name}.py 的文件。
+    两级检测：
+      1. 配置文件中直接包含 LLMJudgeEvaluator 字符串
+      2. 配置文件引用的评测器（如 ExamDynamicEvaluator）内部依赖 LLMJudgeEvaluator
 
     Returns:
         'llm' 或 'rule'
@@ -103,6 +105,10 @@ def detect_evaluator_type(suite_name: str) -> str:
         try:
             content = py_file.read_text(encoding="utf-8")
             if "LLMJudgeEvaluator" in content:
+                return "llm"
+            # 评分器名不直接包含 LLMJudgeEvaluator 但可能内部引用了它
+            # 如 ExamDynamicEvaluator
+            if "ExamDynamicEvaluator" in content:
                 return "llm"
         except Exception:
             pass
