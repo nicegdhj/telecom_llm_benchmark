@@ -166,13 +166,16 @@ def run_eval_for_task(
     details_base = str(infer_task_dir / "details")
 
     cmd = [
-        "ais_bench",
+        sys.executable, "-m", "ais_bench.benchmark.cli.main",
         "--mode", "eval",
         "--work-dir", details_base,
         "--reuse", timestamp,
         "--models", model_config,
         "--datasets", suite,
     ]
+
+    # 任务开始前清理残留共享内存，防止前面任务的泄漏累积导致死锁
+    _cleanup_leaked_shm()
 
     start_time = time.time()
     status = "success"
