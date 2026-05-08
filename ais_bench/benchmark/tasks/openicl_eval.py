@@ -8,6 +8,14 @@ import os
 import os.path as osp
 import statistics
 import sys
+
+benchmark_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+sys.path.insert(0, benchmark_dir)
+
+if sys.platform == "darwin":
+    import multiprocessing
+    multiprocessing.set_start_method("fork", force=True)
+
 import time
 from collections import Counter
 from functools import lru_cache
