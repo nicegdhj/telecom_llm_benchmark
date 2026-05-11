@@ -53,4 +53,4 @@ data/
 .github/
 
 # Smoke tests
-smoke_tests/
+smoke_tests/.DS_Store
