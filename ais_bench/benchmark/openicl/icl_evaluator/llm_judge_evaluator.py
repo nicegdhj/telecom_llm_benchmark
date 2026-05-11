@@ -95,7 +95,7 @@ class LLMJudgeEvaluator(BaseEvaluator):
             stream=False,
             request_rate=0,
             retry=1,
-            max_out_len=512,
+            max_out_len=4096,
             batch_size=concurrency,
             trust_remote_code=False,
             verbose=verbose,
@@ -238,7 +238,7 @@ class LLMJudgeEvaluator(BaseEvaluator):
                     tasks = [
                         self.model.generate(
                             input_data=prompt,
-                            max_out_len=128,
+                            max_out_len=getattr(self.model, 'max_out_len', 128),
                             output=output,
                             session=session
                         )
@@ -260,7 +260,7 @@ class LLMJudgeEvaluator(BaseEvaluator):
             else:
                 judgements = loop.run_until_complete(_run_api_inference())
         else:
-            judgements = self.model.generate(prompts, max_out_len=128)
+            judgements = self.model.generate(prompts, max_out_len=getattr(self.model, 'max_out_len', 128))
         details = []
         for i, (pred, ref, judge_output, max_score) in enumerate(zip(predictions, references, judgements, max_scores)):
             score = 0.0

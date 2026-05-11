@@ -74,7 +74,7 @@ class AlarmJudgeEvaluator(LLMJudgeEvaluator):
                     tasks = [
                         self.model.generate(
                             input_data=prompt,
-                            max_out_len=1024,
+                            max_out_len=getattr(self.model, 'max_out_len', 1024),
                             output=output,
                             session=session
                         )
@@ -96,7 +96,7 @@ class AlarmJudgeEvaluator(LLMJudgeEvaluator):
             else:
                 judgements = loop.run_until_complete(_run_api_inference())
         else:
-            judgements = self.model.generate(prompts, max_out_len=1024)
+            judgements = self.model.generate(prompts, max_out_len=getattr(self.model, 'max_out_len', 1024))
             
         details = []
         for i, (pred, ref, judge_output, max_score) in enumerate(zip(predictions, references, judgements, max_scores)):
