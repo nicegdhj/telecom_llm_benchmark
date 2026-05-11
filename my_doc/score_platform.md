@@ -1,4 +1,4 @@
-# Score Platform — 评测管理平台 系统说明文档
+e# Score Platform — 评测管理平台 系统说明文档
 
 > 版本：v1.0 | 日期：2026-04-22
 

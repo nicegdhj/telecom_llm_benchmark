@@ -93,13 +93,13 @@ class VLLMCustomAPIChat(BaseAPIModel):
         self.session = None
 
     def _get_url(self) -> str:
-        endpoint = "v1/chat/completions"
-        if self.url.endswith(endpoint):
-            url = self.url
-        else:
-            url = urllib.parse.urljoin(self.base_url, endpoint)
-            self.logger.debug(f"Request url: {url}")
-        return url
+        # endpoint = "v1/chat/completions"
+        # if self.url.endswith(endpoint):
+        #     url = self.url
+        # else:
+        #     url = urllib.parse.urljoin(self.base_url, endpoint)
+        #     self.logger.debug(f"Request url: {url}")
+        return self.url
 
     async def get_request_body(
             self, input: PromptType, max_out_len: int, output: RequestOutput, **args

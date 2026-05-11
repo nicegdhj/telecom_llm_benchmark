@@ -283,6 +283,7 @@ if [[ "$RUN_MODE" == "infer" ]] || [[ "$RUN_MODE" == "all" ]]; then
             --model-config "${MODEL_CONFIG}" \
             --tasks 1 34 36 43 44 60 101 102 \
             --generic-datasets \
+                alarm_data_gen_0_shot \
                 ceval_gen_0_shot_str \
                 mmlu_redux_gen_5_shot_str \
                 teledata_gen_0_shot \
