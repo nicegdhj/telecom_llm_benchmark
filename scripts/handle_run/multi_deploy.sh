@@ -60,7 +60,9 @@ EVAL_VERSION="eval_init"
 #      模型名   - 留空则使用 DEFAULT_LOCAL_MODEL_NAME
 #      IP       - 留空则使用 DEFAULT_LOCAL_HOST_IP
 TARGETS=(
-      "pt_v_03:10051:qwen3-32b:188.109.35.155"
+#      "pt_v_03:10051:qwen3-32b:188.109.35.155"
+      "qwen3-32b_alarm:30018:qwen3-32b_alarm:188.109.35.149"
+      "qwen3-32b-think:10051:qwen3-32b:188.109.35.148"
 #     "telechat_36b:10052:telechat-36b:188.109.35.152"
      #"pt1_9_set81_think:10052:qwen3-32b:188.109.35.195"
      # "deepseek_3_1:0:deepseek_V3_1:188.109.35.100"

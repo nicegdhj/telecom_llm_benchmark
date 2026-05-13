@@ -26,36 +26,41 @@ TELECOM_JUDGE_PROMPT_TEMPLATE = """
 3. 能包容合理的同义替换或不同但正确的表述方式，而不拘泥于逐字匹配。
 4. 能识别通信术语使用是否规范（如区分"上行/下行"、"信道/载波"等易混淆概念）。
 
-## 评估维度（满分5分，精确到0.5分）:
+##目标
+- 给定一个通信行业的**专业问题**，一个**标准答案**，一个**模型答案**
+- 基于**标准答案**，给出你对于**模型答案**的评分
+- 评分需要分3个维度：核心事实一致性、专业准确性、以及表述完整性，评分维度如下：
 
-### 维度1：核心事实一致性（权重50%）
+## 评估维度（每个评估项满分10分，精确到1分）:
+
+### 维度1：核心事实一致性
 评估候选答案与参考答案在核心知识点上的吻合程度。
 
-- **5分**：候选答案完整覆盖参考答案中所有核心知识点，无事实冲突，即使换了表述本质完全一致。
-- **4分**：涵盖绝大部分核心知识点，存在极细微遗漏或措辞差异，不影响技术理解。
-- **3分**：涵盖超过一半的核心知识点，无严重事实冲突，但有明显遗漏。
-- **2分**：遗漏大部分核心知识点，或存在明显事实冲突（如错误的数值/参数/协议名称）。
-- **1分**：与参考答案完全相悖，或提供了与问题无关的内容。
+- **10分**：候选答案完整覆盖参考答案中所有核心知识点，无事实冲突，即使换了表述本质完全一致。
+- **8分**：涵盖绝大部分核心知识点，存在极细微遗漏或措辞差异，不影响技术理解。
+- **6分**：涵盖超过一半的核心知识点，无严重事实冲突，但有明显遗漏。
+- **4分**：遗漏大部分核心知识点，或存在明显事实冲突（如错误的数值/参数/协议名称）。
+- **2分**：与参考答案完全相悖，或提供了与问题无关的内容。
 - **0分**：完全未作答，或输出为乱码/无意义内容。
 
-### 维度2：专业准确性（权重30%）
+### 维度2：专业准确性
 评估候选答案中通信专业术语和技术细节的正确性。
 
-- **5分**：术语使用规范，技术参数（频率、时隙、编码、接口名称等）完全正确，无捏造内容。
-- **4分**：术语基本正确，偶有细微的专业表述不够严谨但不影响理解。
-- **3分**：大部分术语正确，但有个别术语使用不当或技术细节模糊。
-- **2分**：存在明显的术语混淆或错误技术规格（如错误的协议版本、参数量级）。
-- **1分**：大量术语错误或存在严重的技术事实错误（如把上行和下行混淆）。
+- **10分**：术语使用规范，技术参数（频率、时隙、编码、接口名称等）完全正确，无捏造内容。
+- **8分**：术语基本正确，偶有细微的专业表述不够严谨但不影响理解。
+- **6分**：大部分术语正确，但有个别术语使用不当或技术细节模糊。
+- **4分**：存在明显的术语混淆或错误技术规格（如错误的协议版本、参数量级）。
+- **2分**：大量术语错误或存在严重的技术事实错误（如把上行和下行混淆）。
 - **0分**：专业内容完全错误或充斥捏造的技术描述（幻觉严重）。
 
-### 维度3：完整性与表述（权重20%）
+### 维度3：表述完整性
 评估答案的内容完整程度和语言表达质量。
 
-- **5分**：内容结构清晰，表述流畅，覆盖参考答案的逻辑层次，有合理扩展且无误。
-- **4分**：内容较完整，结构清晰，表述准确，存在少量遗漏但不影响整体。
-- **3分**：内容基本完整，但有明显遗漏或表述略显啰嗦/生硬。
-- **2分**：内容存在较多遗漏，或结构混乱，影响理解。
-- **1分**：内容严重缺失、答案被截断或逻辑支离破碎。
+- **10分**：内容结构清晰，表述流畅，覆盖参考答案的逻辑层次，有合理扩展且无误。
+- **8分**：内容较完整，结构清晰，表述准确，存在少量遗漏但不影响整体。
+- **6分**：内容基本完整，但有明显遗漏或表述略显啰嗦/生硬。
+- **4分**：内容存在较多遗漏，或结构混乱，影响理解。
+- **2分**：内容严重缺失、答案被截断或逻辑支离破碎。
 - **0分**：完全无法阅读或表述完全错乱。
 
 ## 用户问题（指令+附加信息）:
@@ -67,27 +72,25 @@ TELECOM_JUDGE_PROMPT_TEMPLATE = """
 ## 候选模型输出（Candidate）:
 {candidate_output}
 
-## 评分计算规则:
-最终得分 = 维度1得分 × 50% + 维度2得分 × 30% + 维度3得分 × 20%
-评分范围：0 ~ 5 分，精确到 0.5 分。
-
-## 幻觉判断标准:
-满足以下任一条件，将 hallucination 设置为 true：
-- 候选答案中出现参考答案未提及的、且与通信技术事实相悖的虚假技术信息（如捏造协议参数）。
-- 候选答案引用了不存在的标准名称、接口名称、信道类型或频段值。
-- 候选答案中存在对技术概念的根本性错误（如混淆核心网与接入网概念）。
+## 要求
+1.请先按照评估维度思考和判断，给出打分理由后，再按该评估项下打分细则进行打分
+2.按评估项逐一进行判断和打分，不要一次性进行
 
 ## 输出格式:
-直接以JSON对象输出，不要添加任何markdown代码块或多余前缀/后缀。输出必须以 {{ 开始，以 }} 结束。
+- 直接以JSON对象输出，不要添加任何markdown代码块或多余前缀/后缀。输出必须以 {{ 开始，以 }} 结束。
+- score_1 为第一个维度的评估分数，evaluate_1 为第一评估维度的原因，依次类推
 
 输出示例：
-{{"score": 4.0, "evaluation": "候选答案覆盖了参考答案中关于5G NR帧结构的主要知识点，时隙数量描述正确，但遗漏了子载波间隔与帧结构的关联说明，专业术语使用规范无误。", "hallucination": false}}
+{{
+  "核心事实一致性": "候选答案覆盖了参考答案中关于5G NR帧结构的主要知识点，xxx", 
+  "核心事实一致性得分": 8.0, 
+  "专业准确性评价": "xxx", 
+  "专业准确性得分": 6.0, 
+  "表述完整性评价": "xxx", 
+  "表述完整性得分": 8.0, 
+}}
 
-## 注意事项:
-- evaluation字段：100字以内，简要说明得分依据，指出哪些知识点符合、哪些遗漏、是否有专业性问题。
-- 如候选答案包含推理过程（如<think>标签内容），忽略推理过程，仅评估最终给出的答案。
-- 评估目的是测试模型是否从通信领域训练集中有效习得正确的QA知识对。"""
-
+"""
 
 @ICL_EVALUATORS.register_module()
 class TelecomLLMJudgeEvaluator(LLMJudgeEvaluator):
@@ -97,7 +100,10 @@ class TelecomLLMJudgeEvaluator(LLMJudgeEvaluator):
     最终指标与 LLMJudgeEvaluator 兼容，并额外输出 hallucination_rate。
     """
 
-    MAX_SCORE = 5.0
+    MAX_SCORE = 10.0
+
+    # 新格式三维度字段名
+    _DIM_SCORE_KEYS = ["核心事实一致性得分", "专业准确性得分", "表述完整性得分"]
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -206,29 +212,43 @@ class TelecomLLMJudgeEvaluator(LLMJudgeEvaluator):
                         pass
 
             if parsed and isinstance(parsed, dict):
-                try:
-                    score = float(parsed.get('score', 0.0))
-                    score = min(max(score, 0.0), self.MAX_SCORE)
-                except (TypeError, ValueError):
-                    pass
+                # 新格式：三维度得分各 0-10，取平均值为最终分
+                dim_scores = []
+                for key in self._DIM_SCORE_KEYS:
+                    try:
+                        dim_scores.append(float(parsed[key]))
+                    except (KeyError, TypeError, ValueError):
+                        pass
+                if dim_scores:
+                    score = min(max(sum(dim_scores) / len(dim_scores), 0.0), self.MAX_SCORE)
+                else:
+                    # 兼容旧格式 'score' 字段
+                    try:
+                        score = float(parsed.get('score', 0.0))
+                        score = min(max(score, 0.0), self.MAX_SCORE)
+                    except (TypeError, ValueError):
+                        pass
                 evaluation = str(parsed.get('evaluation', ''))
                 hallucination = bool(parsed.get('hallucination', False))
             else:
-                # JSON 解析失败，回退到正则提取 score 数字
-                score_match = re.search(
-                    r'["\']score["\']\s*:\s*["\']?([\d.]+)["\']?', clean_output, re.IGNORECASE
+                # JSON 解析失败，回退到正则提取维度分之和
+                dim_matches = re.findall(
+                    r'(?:核心事实一致性得分|专业准确性得分|表述完整性得分)["\s]*:\s*([\d.]+)',
+                    clean_output,
                 )
-                if score_match:
+                if dim_matches:
                     try:
-                        score = float(score_match.group(1))
-                        score = min(max(score, 0.0), self.MAX_SCORE)
+                        vals = [float(x) for x in dim_matches]
+                        score = min(max(sum(vals) / len(vals), 0.0), self.MAX_SCORE)
                     except ValueError:
                         pass
                 else:
-                    matches = re.findall(r'([\d.]+)', clean_output)
-                    if matches:
+                    score_match = re.search(
+                        r'["\']score["\']\s*:\s*["\']?([\d.]+)["\']?', clean_output, re.IGNORECASE
+                    )
+                    if score_match:
                         try:
-                            score = float(matches[-1])
+                            score = float(score_match.group(1))
                             score = min(max(score, 0.0), self.MAX_SCORE)
                         except ValueError:
                             pass
