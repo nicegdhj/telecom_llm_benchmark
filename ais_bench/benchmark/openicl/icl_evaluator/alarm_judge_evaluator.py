@@ -131,8 +131,15 @@ class AlarmJudgeEvaluator(LLMJudgeEvaluator):
                     else:
                         score = 0.0
                 except Exception as e:
-                    self.logger.warning(f"Failed to parse JSON for index {i}: {e}")
-                    pass
+                    self.logger.warning(f"Failed to parse JSON for index {i}: {e}. Fallback to regex.")
+                    def extract_score(key):
+                        match = re.search(rf'"{key}"\s*:\s*([\d.]+)', json_str)
+                        return float(match.group(1)) if match else 0.0
+                    
+                    clustering = extract_score("clustering")
+                    root_cause = extract_score("root_cause")
+                    hallucination = extract_score("hallucination_check")
+                    score = clustering + root_cause + hallucination
 
             details.append({
                 'prompt': prompts[i],
