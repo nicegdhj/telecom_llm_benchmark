@@ -31,13 +31,14 @@ bash scripts/deploy_scripts/start-local.sh -d     # 后台模式
 
 脚本会自动完成：
 1. 创建 `workspace/`、`backend/backend_data/` 等必要目录
-2. 将 `eval_entry.py`、`scripts/` 等文件复制到 `workspace/code/`（首次，不覆盖）
+2. 将 `eval_entry.py`、`scripts/`、`ais_bench/` 等软链到 `workspace/code/`
 3. 构建 `benchmark-eval:latest` 镜像（已存在则跳过）
-4. `docker compose up --build` 启动 score-frontend + score-backend
+4. 宿主机 `npm run build` 构建前端 dist
+5. `docker compose up --build` 启动 score-frontend + score-backend
 
-启动后访问：
-- 前端：`http://localhost:80`
-- 后端：`http://localhost:8080`
+启动后访问（整个应用挂载于 `/chuilei/eval/` 前缀，裸 `/` 会 301 跳转过去）：
+- 前端：`http://localhost/chuilei/eval/`
+- 后端 API：经前端 nginx 反代为 `/chuilei/eval/api/v1/...`（后端自身 `/api/v1`，前缀由 nginx 剥离）
 
 停止服务：
 ```bash
@@ -50,50 +51,62 @@ docker compose -f deploy_docker/docker-compose.yml down
 
 私域网络无公网连接，需在有网的机器上构建并导出镜像，再传输到服务器。
 
+> **★架构前提**：华为 910C 为 `aarch64`(ARM64)。镜像 `docker save` 后**不能跨架构 load**，
+> 因此**必须在 ARM64 机器上打包**（Apple Silicon Mac 即 arm64，与 910C 匹配，可直接打）。
+> 切勿在 Intel/x86 机器上打包，否则 910C 导入后无法启动。
+
+> **平台只是 HTTP 客户端，不吃 NPU**。被测模型、打分模型是独立的推理服务（如 vLLM-ascend），
+> 由别处单独拉起并暴露 `IP:PORT`；910C 网络能访问到即可。其 IP/端口/密钥**不写 .env**，
+> 部署后在 Web 界面「评测模型」「打分模型」中录入，由后端按需动态注入算子容器。
+
 ### 3.1 场景一：全量部署（前端 + 后端 + ais_bench）
 
-在有网的机器（如开发 Mac）上执行一键打包：
+在有网的 ARM64 机器（如开发 Mac）上执行一键打包：
 
 ```bash
 bash scripts/deploy_scripts/prod_all.sh
 ```
 
 脚本自动完成：
-1. 构建三个镜像：`benchmark-eval`、`score-backend`、`score-frontend`
-2. 导出为单一离线包 `score-platform-images.tar.gz`
-3. 生成 `docker-compose.prod.yml`（生产环境 Compose，使用镜像名而非 build）
-4. 打包为 `outputs/score_platform_<timestamp>.tar.gz`
+1. 宿主机 `npm run build` 构建最新前端 dist（含 `/chuilei/eval/` 前缀）
+2. 构建三个镜像：`benchmark-eval`、`score-backend`、`score-frontend`
+3. 导出为单一离线包 `score-platform-images.tar.gz`
+4. 自带 `code/` 业务脚本（`eval_entry.py`/`eval_judge.py`/`scripts/`/`ais_bench/`）——
+   后端起算子容器时 `-v` 挂载它们，缺失会导致评测一启动就失败
+5. 生成生产 `docker-compose.prod.yml`（后端端口收口，仅经 nginx 暴露）、
+   `.env.example`、一键铺底脚本 `init_workspace.sh`
+6. 打包为 `outputs/score_platform_<timestamp>.tar.gz`
 
 **在私域服务器上部署：**
 
 ```bash
-# 1. 传输压缩包
+# 1. 传输 + 解压
 scp outputs/score_platform_<timestamp>.tar.gz user@server:/opt/
+cd /opt && tar -xzf score_platform_<timestamp>.tar.gz && cd score_platform
 
-# 2. 解压
-cd /opt && tar -xzf score_platform_<timestamp>.tar.gz
-cd score_platform
-
-# 3. 导入三个镜像
+# 2. 导入三个镜像
 docker load < score-platform-images.tar.gz
 
-# 4. 配置环境变量
+# 3. 配置
 cp .env.example .env
-vi .env  # 填写 WORKSPACE_DIR、BACKEND_DATA_DIR 实际路径
+vi .env   # 填写 WORKSPACE_DIR、BACKEND_DATA_DIR、管理员密码
 
-# 5. 创建 workspace 目录结构
-mkdir -p /opt/eval_workspace/{data,outputs,code}
-mkdir -p /opt/eval_backend_data/{envs,logs}
+# 4. 一键建目录 + 铺 code（读取 .env）
+bash init_workspace.sh
 
-# 6. 启动服务
+# 5. 启动服务
 docker compose -f docker-compose.prod.yml --env-file .env up -d
 ```
 
-访问：
-- 前端：`http://<服务器IP>:80`
-- 后端：`http://<服务器IP>:8080`
+访问（整个应用挂载于 `/chuilei/eval/` 前缀，裸 `/` 会 301 跳转过去）：
+- 前端：`http://<服务器IP>/chuilei/eval/`
+- 后端：经 nginx 反代，无需也不建议直接对外暴露 8080；如需调试，
+  在 `docker-compose.prod.yml` 中临时取消 `score-backend` 的 `ports` 注释
 
-> **注意**：`benchmark-eval` 由后端通过 `docker run` 动态启动，无需在 compose 中声明，但镜像必须已 load 到服务器。
+> **注意**：
+> - `benchmark-eval` 由后端通过 `docker run` 动态启动，无需在 compose 声明，但镜像必须已 load。
+> - `WORKSPACE_DIR` 宿主机与容器内必须同路径，否则算子容器 `-v` 挂载失败。
+> - 全部平台状态在 `BACKEND_DATA_DIR/eval_backend.db`，备份只需备份它。
 
 ### 3.2 场景二：仅部署 ais_bench 评测容器（无前后端）
 
