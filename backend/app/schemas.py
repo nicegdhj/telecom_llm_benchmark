@@ -123,6 +123,7 @@ class BatchCreate(BaseModel):
     mode: Literal["infer", "eval", "all"] = "all"
     model_ids: list[int] = Field(..., min_length=1)
     task_ids: list[int] = Field(..., min_length=1)
+    task_version_map: dict[int, int] | None = None
     default_eval_version: str = "eval_init"
     default_judge_id: int | None = None
     notes: str | None = None
@@ -154,6 +155,7 @@ class BatchOut(BaseModel):
     created_at: datetime
     updated_at: datetime
     status: str = "pending"  # pending | running | success | failed
+    eval_config: dict[str, Any] | None = None
 
 
 class BatchReportRow(BaseModel):
@@ -190,6 +192,7 @@ class BatchRevisionOut(BaseModel):
     change_type: str
     change_summary: str | None
     created_at: datetime
+    actor: UserBrief | None = None
 
 
 class PredictionOut(BaseModel):
@@ -204,6 +207,7 @@ class PredictionOut(BaseModel):
     num_samples: int | None
     duration_sec: float | None
     job_id: int | None
+    version_label: str | None
     created_at: datetime
     finished_at: datetime | None
     error_msg: str | None
@@ -221,9 +225,96 @@ class EvaluationOut(BaseModel):
     num_samples: int | None
     duration_sec: float | None
     job_id: int | None
+    version_label: str | None
     created_at: datetime
     finished_at: datetime | None
     error_msg: str | None
+
+
+# ── Cell 级 ───────────────────────────────────────────────────────────
+
+class CellHistoryItem(BaseModel):
+    job_id: int
+    kind: Literal["infer", "eval"]
+    status: str
+    version_label: str | None
+    created_at: str | None
+    started_at: str | None
+    finished_at: str | None
+    error_msg: str | None
+    returncode: int | None
+    log_path: str | None
+    prediction_id: int | None
+    evaluation_id: int | None
+    accuracy: float | None
+    num_samples: int | None
+    duration_sec: float | None
+    based_on_infer: str | None = None
+    source_prediction_id: int | None = None
+
+
+class CellDetailOut(BaseModel):
+    batch_id: int
+    model_id: int
+    task_id: int
+    dataset_version_id: int | None
+    current_prediction_id: int | None
+    current_evaluation_id: int | None
+    history: list[CellHistoryItem]
+
+
+class CellPointerIn(BaseModel):
+    current_prediction_id: int | None = None
+    current_evaluation_id: int | None = None
+
+
+class CellRerunIn(BaseModel):
+    what: Literal["infer", "eval", "both"]
+    source_prediction_id: int | None = None
+
+
+# ── 测评分析 ──────────────────────────────────────────────────────────
+
+class EvaluationSearchOut(BaseModel):
+    """搜索结果展示用，含关联字段。"""
+    id: int
+    model_id: int
+    model_name: str | None
+    task_id: int
+    task_key: str | None
+    batch_id: int | None
+    batch_name: str | None
+    version_label: str | None
+    status: str
+    accuracy: float | None
+    num_samples: int | None
+    duration_sec: float | None
+    eval_version: str
+    created_at: datetime
+    finished_at: datetime | None
+
+
+class AnalysisViewIn(BaseModel):
+    name: str = Field(..., min_length=1, max_length=200)
+    evaluation_ids: list[int] = []
+    chart_config: dict = {}
+
+
+class AdhocExportIn(BaseModel):
+    """临时导出（不依赖已保存模板）。"""
+    evaluation_ids: list[int] = []
+    filename: str | None = None
+
+
+class AnalysisViewOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    name: str
+    owner_user_id: int
+    evaluation_ids: list[int]
+    chart_config: dict
+    created_at: datetime
+    updated_at: datetime
 
 
 class JobOut(BaseModel):
@@ -245,6 +336,7 @@ class JobOut(BaseModel):
     started_at: datetime | None
     finished_at: datetime | None
     error_msg: str | None
+    version_label: str | None = None
     model_name: str | None = None
     task_key: str | None = None
 

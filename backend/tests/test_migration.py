@@ -22,7 +22,7 @@ def test_migrate_fresh_db_writes_version_2(tmp_path):
         run_migrations(s)
         s.commit()
         assert s.query(SchemaVersion).count() == 1
-        assert s.query(SchemaVersion).first().version == 2
+        assert s.query(SchemaVersion).first().version == 4
 
 
 def test_migrate_idempotent(tmp_path):
@@ -36,7 +36,7 @@ def test_migrate_idempotent(tmp_path):
         run_migrations(s)
         s.commit()
         assert s.query(SchemaVersion).count() == 1
-        assert s.query(SchemaVersion).first().version == 2
+        assert s.query(SchemaVersion).first().version == 4
 
 
 def test_migrate_old_db_alters_columns(tmp_path):

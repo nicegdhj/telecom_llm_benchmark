@@ -21,7 +21,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certifi
 # ── 安装 Python 依赖 ───────────────────────────────────────────────
 COPY backend/pyproject.toml ./backend/
 RUN pip install --no-cache-dir \
-    fastapi uvicorn[standard] sqlalchemy pydantic pydantic-settings pyyaml python-multipart
+    fastapi uvicorn[standard] sqlalchemy pydantic pydantic-settings pyyaml python-multipart openpyxl tokenizers
 
 # ── 复制后端源码 ───────────────────────────────────────────────────
 COPY backend/app ./backend/app

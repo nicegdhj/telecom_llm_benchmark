@@ -4,17 +4,23 @@ from backend.app.config import Settings
 
 
 def _common_docker_args(settings: Settings, job_id: int,
-                        env_file: Path, container_name: str) -> list[str]:
+                        env_file: Path, container_name: str,
+                        task_type: str) -> list[str]:
+    data_vol_src = settings.workspace_dir / "data"
+    if task_type != "custom":
+        data_vol_src = Path(settings.workspace_dir).parent / "data"
+
     return [
         "docker", "run", "--rm",
         "--name", container_name,
         "--memory=128g", "--memory-swap=128g", "--shm-size=16g",
         "--env-file", str(env_file),
-        "-v", f"{settings.workspace_dir}/data:/app/data",
+        "-v", f"{data_vol_src}:/app/data",
         "-v", f"{settings.workspace_dir}/outputs:/app/outputs",
         "-v", f"{settings.code_dir}/eval_entry.py:/app/eval_entry.py",
         "-v", f"{settings.code_dir}/eval_judge.py:/app/eval_judge.py",
         "-v", f"{settings.code_dir}/scripts:/app/scripts",
+        "-v", f"{settings.code_dir}/ais_bench:/app/ais_bench",
         settings.docker_image_tag,
     ]
 
@@ -32,7 +38,7 @@ def build_infer_cmd(
     suite_name: str,
 ) -> list[str]:
     cmd = _common_docker_args(
-        settings, job_id, env_file, f"eval-{job_id}-infer"
+        settings, job_id, env_file, f"eval-{job_id}-infer", task_type
     )
     cmd += [
         "python", "eval_entry.py",
@@ -55,9 +61,10 @@ def build_eval_cmd(
     output_task_id: str,
     eval_version: str,
     suite_name: str,
+    task_type: str = "generic",
 ) -> list[str]:
     cmd = _common_docker_args(
-        settings, job_id, env_file, f"eval-{job_id}-judge"
+        settings, job_id, env_file, f"eval-{job_id}-judge", task_type
     )
     cmd += [
         "python", "eval_judge.py",

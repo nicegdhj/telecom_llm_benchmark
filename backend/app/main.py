@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from backend.app.db import init_db
+from backend.app.routers import analytics as analytics_router
 from backend.app.routers import auth as auth_router
 from backend.app.routers import batches as batches_router
 from backend.app.routers import users as users_router
@@ -44,6 +45,7 @@ app.include_router(batches_router.router)
 app.include_router(jobs_router.router)
 app.include_router(predictions_router.router)
 app.include_router(evaluations_router.router)
+app.include_router(analytics_router.router)
 
 
 @app.get("/api/v1/health")

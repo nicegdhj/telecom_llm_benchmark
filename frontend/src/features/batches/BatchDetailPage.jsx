@@ -1,35 +1,26 @@
 import { useState } from 'react';
-import { useParams } from 'react-router-dom';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useParams, useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { api, transformReportToMatrix } from '../../lib/api';
-import { Card, CardHeader, CardBody } from '../../components/ui/Card';
-import { StatusBadge } from '../../components/ui/StatusBadge';
-import { Modal } from '../../components/ui/Modal';
-import { ArrowLeft, BarChart3, GitBranch, RotateCcw, Table, User } from 'lucide-react';
+import { Card, CardBody } from '../../components/ui/Card';
+import { ArrowLeft, GitBranch, Table, User, ChevronRight, CheckCircle2, XCircle, Loader2, Circle } from 'lucide-react';
 import { userDisplay } from '../../lib/userDisplay';
-import { useNavigate } from 'react-router-dom';
-import { AccuracyBarChart } from './components/AccuracyBarChart';
-import { DurationBarChart } from './components/DurationBarChart';
-import { ModelTaskRadarChart } from './components/ModelTaskRadarChart';
+import { CellDetailPanel } from './components/CellDetailPanel';
 
 const TABS = [
-  { id: 'matrix', label: '战报矩阵', icon: Table },
-  { id: 'charts', label: '图表分析', icon: BarChart3 },
-  { id: 'revisions', label: '历史版本', icon: GitBranch },
-  { id: 'rerun', label: '局部重跑', icon: RotateCcw },
+  { id: 'matrix', label: '详情', icon: Table },
+  { id: 'revisions', label: '变更日志', icon: GitBranch },
 ];
 
 export function BatchDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const qc = useQueryClient();
   const [activeTab, setActiveTab] = useState('matrix');
-  const [selectedRev, setSelectedRev] = useState(null);
 
   const { data: batch } = useQuery({ queryKey: ['batches', id], queryFn: () => api.batches.get(Number(id)) });
   const { data: report } = useQuery({
-    queryKey: ['batches', id, 'report', selectedRev],
-    queryFn: () => api.batches.report(Number(id), selectedRev),
+    queryKey: ['batches', id, 'report'],
+    queryFn: () => api.batches.report(Number(id)),
   });
   const { data: revisions } = useQuery({ queryKey: ['batches', id, 'revisions'], queryFn: () => api.batches.revisions(Number(id)) });
 
@@ -65,15 +56,6 @@ export function BatchDetailPage() {
             )}
           </div>
         </div>
-        {revisions?.length > 0 && (
-          <div className="flex items-center gap-2">
-            <label className="text-sm text-gray-500">版本:</label>
-            <select className="input py-1 text-sm" value={selectedRev || ''} onChange={e => setSelectedRev(e.target.value ? Number(e.target.value) : null)}>
-              <option value="">当前</option>
-              {revisions.map(r => <option key={r.id} value={r.rev_num}>Rev {r.rev_num} ({r.change_type})</option>)}
-            </select>
-          </div>
-        )}
       </div>
 
       <div className="flex gap-1 mb-6 border-b border-gray-100">
@@ -93,92 +75,183 @@ export function BatchDetailPage() {
           ))}
       </div>
 
-      {activeTab === 'matrix' && <MatrixTab data={matrixData} />}
-      {activeTab === 'charts' && <ChartsTab rows={report?.rows} />}
+      {activeTab === 'matrix' && <DetailTab batchId={Number(id)} data={matrixData} />}
       {activeTab === 'revisions' && <RevisionsTab revisions={revisions} />}
-      {activeTab === 'rerun' && <RerunTab batchId={Number(id)} />}
     </div>
   );
 }
 
-function MatrixTab({ data }) {
+
+/**
+ * 详情 Tab：上半矩阵（按状态着色，可点击下钻），下半 CellDetailPanel。
+ *
+ * 设计要点：
+ * - 颜色按 status 着色：成功=绿、失败=红、运行中=蓝、待执行=灰、未跑=空白
+ *   不再按 accuracy 阈值上色，避免「跑通了但 0% 准确率」被误显示为红
+ * - 选中态：左侧加蓝边 + 深底；hover：ring
+ * - 表格保持紧凑；左侧"模型"列 sticky
+ */
+function DetailTab({ batchId, data }) {
+  const [selected, setSelected] = useState(null);
   if (!data) return <div className="text-gray-400">加载中...</div>;
   const { models, tasks, matrix } = data;
 
-  function cellColor(acc) {
-    if (acc == null) return 'bg-gray-50 text-gray-300';
-    if (acc >= 90) return 'bg-emerald-50 text-emerald-700';
-    if (acc >= 75) return 'bg-teal-50 text-teal-700';
-    if (acc >= 60) return 'bg-amber-50 text-amber-700';
-    return 'bg-red-50 text-red-600';
+  return (
+    <div className="space-y-5">
+      <Card>
+        <CardBody className="p-0">
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-[13px] border-collapse">
+              <thead>
+                <tr className="bg-gray-50 border-b-2 border-gray-200">
+                  <th className="px-4 py-3 font-semibold text-gray-600 text-left sticky left-0 bg-gray-50 border-r border-gray-200 min-w-[160px]">
+                    模型 \ 任务
+                  </th>
+                  {tasks.map((t) => (
+                    <th key={t.id} className="px-3 py-3 font-mono text-xs font-semibold text-gray-600 text-center min-w-[130px]">
+                      {t.key}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {models.map((m, mi) => (
+                  <tr key={m.id} className="border-b border-gray-100 last:border-b-0">
+                    <td className="px-4 py-3 font-semibold text-gray-800 bg-gray-50/50 border-r border-gray-200 sticky left-0">
+                      {m.name}
+                    </td>
+                    {tasks.map((t, ti) => {
+                      const cell = matrix[mi][ti];
+                      const isSelected = selected?.modelId === m.id && selected?.taskId === t.id;
+                      return (
+                        <MatrixCell
+                          key={t.id}
+                          cell={cell}
+                          isSelected={isSelected}
+                          onClick={() => setSelected({ modelId: m.id, taskId: t.id, modelName: m.name, taskKey: t.key })}
+                        />
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </CardBody>
+      </Card>
+
+      <p className="text-xs text-gray-400 -mt-2 px-1">
+        点击矩阵中的格子，下方展示该模型 × 任务的版本历史、日志、与单元重跑入口。
+      </p>
+
+      {selected ? (
+        <CellDetailPanel
+          batchId={batchId}
+          modelId={selected.modelId}
+          taskId={selected.taskId}
+          modelName={selected.modelName}
+          taskKey={selected.taskKey}
+        />
+      ) : (
+        <Card>
+          <CardBody className="text-sm text-gray-400 py-6 text-center">
+            选择上方矩阵中的任一格子查看单元详情
+          </CardBody>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+
+/**
+ * 单个矩阵格子。按 status 上色：
+ *   eval_done / success → 绿；infer_done → 蓝（半成品）；
+ *   failed / cancelled → 红；running → 蓝（带 loader）；pending → 灰
+ */
+function MatrixCell({ cell, isSelected, onClick }) {
+  const s = cell?.status;
+  let palette, Icon;
+  if (!cell) {
+    palette = { bg: 'bg-white', text: 'text-gray-300', border: 'border-gray-100' };
+    Icon = null;
+  } else if (s === 'eval_done' || s === 'success') {
+    palette = { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200', accent: 'text-emerald-700' };
+    Icon = CheckCircle2;
+  } else if (s === 'infer_done') {
+    palette = { bg: 'bg-sky-50', text: 'text-sky-700', border: 'border-sky-200', accent: 'text-sky-700' };
+    Icon = Circle;
+  } else if (s === 'failed' || s === 'cancelled' || s === 'timeout') {
+    palette = { bg: 'bg-red-50', text: 'text-red-700', border: 'border-red-200', accent: 'text-red-700' };
+    Icon = XCircle;
+  } else if (s === 'running') {
+    palette = { bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200', accent: 'text-blue-700' };
+    Icon = Loader2;
+  } else {
+    palette = { bg: 'bg-gray-50', text: 'text-gray-500', border: 'border-gray-200', accent: 'text-gray-500' };
+    Icon = Circle;
   }
 
+  const selRing = isSelected ? 'ring-2 ring-primary-500 ring-offset-1 z-10' : '';
+
   return (
-    <div className="overflow-x-auto">
-      <table className="min-w-full border border-gray-200 rounded-xl overflow-hidden">
-        <thead>
-          <tr>
-            <th className="px-3 py-2.5 text-xs font-semibold text-gray-500 bg-gray-50 border-b border-r border-gray-200 sticky left-0">模型 \ 任务</th>
-            {tasks.map(t => (
-              <th key={t.id} className="px-3 py-2.5 text-xs font-semibold text-gray-500 bg-gray-50 border-b border-gray-200 min-w-[100px] text-center">{t.key}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {models.map((m, mi) => (
-            <tr key={m.id}>
-              <td className="px-3 py-2.5 text-sm font-medium text-gray-800 bg-gray-50 border-r border-gray-200 sticky left-0">{m.name}</td>
-              {tasks.map((t, ti) => {
-                const cell = matrix[mi][ti];
-                return (
-                  <td key={t.id} className={`px-3 py-2.5 text-sm text-center border-b border-gray-100 ${cellColor(cell?.accuracy)}`}>
-                    {cell ? (
-                      <div className="space-y-0.5">
-                        <div className="font-bold">{cell.accuracy != null ? `${cell.accuracy.toFixed(1)}%` : '—'}</div>
-                        <div className="text-xs opacity-60">{cell.num_samples != null ? `${cell.num_samples}条` : '—'}</div>
-                        <div><StatusBadge status={cell.status} /></div>
-                      </div>
-                    ) : <span className="text-gray-300">—</span>}
-                  </td>
-                );
-              })}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+    <td
+      onClick={cell ? onClick : undefined}
+      className={`relative p-0 ${cell ? 'cursor-pointer group' : 'cursor-default'}`}
+      title={cell ? `点击查看详情 · 状态：${s}` : ''}
+    >
+      <div className={`m-1 p-2.5 rounded-lg border ${palette.bg} ${palette.border} ${selRing}
+                       transition-all ${cell ? 'group-hover:shadow-md group-hover:scale-[1.02]' : ''}`}>
+        {cell ? (
+          <div className="space-y-1">
+            <div className="flex items-center justify-between">
+              <span className={`text-lg font-bold ${palette.accent}`}>
+                {cell.accuracy != null ? `${cell.accuracy.toFixed(1)}%` : '—'}
+              </span>
+              {Icon && (
+                <Icon size={14} className={`${palette.accent} ${s === 'running' ? 'animate-spin' : ''}`} />
+              )}
+            </div>
+            <div className={`text-[11px] ${palette.text} opacity-70`}>
+              {cell.num_samples != null ? `${cell.num_samples} 样本` : '—'}
+            </div>
+            <div className={`text-[11px] font-medium ${palette.accent} flex items-center gap-1`}>
+              <span>{statusLabel(s)}</span>
+              <ChevronRight size={11} className="opacity-0 group-hover:opacity-60 transition-opacity ml-auto" />
+            </div>
+          </div>
+        ) : (
+          <div className="text-center text-gray-300 text-sm py-3">—</div>
+        )}
+      </div>
+    </td>
   );
 }
 
-function ChartsTab({ rows }) {
-  if (!rows) return <div className="text-gray-400">加载中...</div>;
-  return (
-    <div className="space-y-8">
-      <section>
-        <h3 className="text-base font-semibold text-gray-800 mb-4">准确率分析</h3>
-        <AccuracyBarChart rows={rows} />
-      </section>
-      <section>
-        <h3 className="text-base font-semibold text-gray-800 mb-4">耗时分析</h3>
-        <DurationBarChart rows={rows} />
-      </section>
-      <section>
-        <h3 className="text-base font-semibold text-gray-800 mb-4">模型能力雷达图</h3>
-        <ModelTaskRadarChart rows={rows} />
-      </section>
-    </div>
-  );
+
+function statusLabel(s) {
+  return {
+    eval_done: '已评分',
+    infer_done: '仅推理',
+    failed: '失败',
+    cancelled: '已取消',
+    timeout: '超时',
+    running: '运行中',
+    pending: '待执行',
+    success: '成功',
+  }[s] || s || '—';
 }
+
 
 function RevisionsTab({ revisions }) {
-  if (!revisions?.length) return <div className="text-gray-400">暂无历史版本</div>;
+  if (!revisions?.length) return <div className="text-gray-400">暂无变更记录</div>;
   return (
     <Card>
       <CardBody className="p-0">
         <table className="min-w-full divide-y divide-gray-100">
           <thead className="bg-gray-50">
             <tr>
-              {['Rev', '类型', '变更说明', '创建时间'].map(h => (
+              {['Rev', '类型', '变更说明', '操作人', '时间'].map(h => (
                 <th key={h} className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase">{h}</th>
               ))}
             </tr>
@@ -191,97 +264,18 @@ function RevisionsTab({ revisions }) {
                   <span className={`px-2 py-0.5 rounded-md text-xs font-medium ${
                     r.change_type === 'create' ? 'bg-primary-100 text-primary-700' :
                     r.change_type === 'rerun' ? 'bg-amber-100 text-amber-700' :
+                    r.change_type === 'rerun_cell' ? 'bg-amber-50 text-amber-700' :
+                    r.change_type === 'switch_pointer' ? 'bg-purple-50 text-purple-700' :
                     'bg-gray-100 text-gray-600'
                   }`}>{r.change_type}</span>
                 </td>
                 <td className="px-6 py-4 text-sm text-gray-500">{r.change_summary || '—'}</td>
+                <td className="px-6 py-4 text-sm text-gray-600">{r.actor ? userDisplay(r.actor) : '—'}</td>
                 <td className="px-6 py-4 text-sm text-gray-500">{new Date(r.created_at).toLocaleString()}</td>
               </tr>
             ))}
           </tbody>
         </table>
-      </CardBody>
-    </Card>
-  );
-}
-
-function RerunTab({ batchId }) {
-  const qc = useQueryClient();
-  const [form, setForm] = useState({ model_ids: [], task_ids: [], what: 'both', dataset_version_id: '' });
-
-  const { data: report } = useQuery({ queryKey: ['batches', batchId, 'report'], queryFn: () => api.batches.report(batchId) });
-
-  const rerunMut = useMutation({
-    mutationFn: (data) => api.batches.rerun(batchId, data),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['jobs'] });
-      setForm({ model_ids: [], task_ids: [], what: 'both', dataset_version_id: '' });
-      alert('重跑任务已创建');
-    },
-  });
-
-  const models = report?.rows ? [...new Map(report.rows.map(r => [r.model_id, { id: r.model_id, name: r.model_name }])).values()] : [];
-  const tasks  = report?.rows ? [...new Map(report.rows.map(r => [r.task_id,  { id: r.task_id,  key: r.task_key  }])).values()] : [];
-
-  function toggle(arr, val) {
-    const v = Number(val);
-    return arr.includes(v) ? arr.filter(x => x !== v) : [...arr, v];
-  }
-
-  function handleSubmit(e) {
-    e.preventDefault();
-    rerunMut.mutate({ ...form, dataset_version_id: form.dataset_version_id ? Number(form.dataset_version_id) : null });
-  }
-
-  return (
-    <Card className="max-w-2xl">
-      <CardBody>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="label">重跑类型</label>
-            <div className="flex gap-4">
-              {[{ value: 'both', label: '推理 + 评测' }, { value: 'infer', label: '仅推理' }, { value: 'eval', label: '仅评测' }].map(opt => (
-                <label key={opt.value} className="flex items-center gap-2 text-sm cursor-pointer text-gray-700">
-                  <input type="radio" name="what" value={opt.value} checked={form.what === opt.value} onChange={e => setForm({ ...form, what: e.target.value })} />
-                  {opt.label}
-                </label>
-              ))}
-            </div>
-          </div>
-          <div>
-            <label className="label">选择模型 <span className="text-red-500">*</span></label>
-            <div className="border border-gray-200 rounded-lg p-3 space-y-2 max-h-40 overflow-y-auto bg-gray-50">
-              {models.map(m => (
-                <label key={m.id} className="flex items-center gap-2 text-sm cursor-pointer text-gray-700">
-                  <input type="checkbox" checked={form.model_ids.includes(m.id)} onChange={() => setForm({ ...form, model_ids: toggle(form.model_ids, m.id) })} />
-                  {m.name}
-                </label>
-              ))}
-            </div>
-          </div>
-          <div>
-            <label className="label">选择任务 <span className="text-red-500">*</span></label>
-            <div className="border border-gray-200 rounded-lg p-3 space-y-2 max-h-40 overflow-y-auto bg-gray-50">
-              {tasks.map(t => (
-                <label key={t.id} className="flex items-center gap-2 text-sm cursor-pointer text-gray-700">
-                  <input type="checkbox" checked={form.task_ids.includes(t.id)} onChange={() => setForm({ ...form, task_ids: toggle(form.task_ids, t.id) })} />
-                  {t.key}
-                </label>
-              ))}
-            </div>
-          </div>
-          <div>
-            <label className="label">数据集版本 ID（可选）</label>
-            <input className="input" type="number" value={form.dataset_version_id} onChange={e => setForm({ ...form, dataset_version_id: e.target.value })} placeholder="留空则不切换数据集" />
-          </div>
-          {rerunMut.isError && <p className="text-sm text-red-600">{rerunMut.error.message}</p>}
-          {rerunMut.isSuccess && <p className="text-sm text-emerald-600">已创建 {rerunMut.data.jobs_created} 个任务</p>}
-          <div className="flex justify-end">
-            <button type="submit" className="btn-primary" disabled={rerunMut.isPending}>
-              {rerunMut.isPending ? '提交中...' : '执行重跑'}
-            </button>
-          </div>
-        </form>
       </CardBody>
     </Card>
   );

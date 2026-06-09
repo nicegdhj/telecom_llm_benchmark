@@ -91,6 +91,8 @@ class Prediction(Base):
     num_samples = Column(Integer)
     duration_sec = Column(Float)
     job_id = Column(Integer, ForeignKey("jobs.id"))
+    # cell 内可读版本号，如 "v1_infer"（cell = (batch_id, model_id, task_id)）
+    version_label = Column(String)
     created_at = Column(DateTime, default=_now)
     finished_at = Column(DateTime)
     error_msg = Column(Text)
@@ -108,6 +110,8 @@ class Evaluation(Base):
     num_samples = Column(Integer)
     duration_sec = Column(Float)
     job_id = Column(Integer, ForeignKey("jobs.id"))
+    # cell 内可读版本号，如 "v1_score"
+    version_label = Column(String)
     created_at = Column(DateTime, default=_now)
     finished_at = Column(DateTime)
     error_msg = Column(Text)
@@ -152,6 +156,8 @@ class BatchRevision(Base):
     created_at = Column(DateTime, default=_now)
     __table_args__ = (UniqueConstraint("batch_id", "rev_num"),)
 
+    actor = relationship("User", foreign_keys=[actor_user_id])
+
 
 class Job(Base):
     __tablename__ = "jobs"
@@ -168,6 +174,8 @@ class Job(Base):
     produces_prediction_id = Column(Integer, ForeignKey("predictions.id"))
     produces_evaluation_id = Column(Integer, ForeignKey("evaluations.id"))
     dependency_job_id = Column(Integer, ForeignKey("jobs.id"))
+    # cell 内可读版本号（与产出的 prediction/evaluation 一致）
+    version_label = Column(String)
     created_by_user_id = Column(Integer, ForeignKey("users.id"))
     created_at = Column(DateTime, default=_now)
     created_by = relationship("User", foreign_keys=[created_by_user_id])
@@ -207,6 +215,21 @@ class UserSession(Base):
     created_at = Column(DateTime, default=_now)
     last_used_at = Column(DateTime, default=_now)
     expires_at = Column(DateTime, nullable=False)
+
+
+class AnalysisView(Base):
+    """测评分析的保存模板：用户自选若干 Evaluation 拼成对比视图。"""
+    __tablename__ = "analysis_views"
+    id = Column(Integer, primary_key=True)
+    name = Column(String, nullable=False)
+    owner_user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    # 用户勾选的 evaluation_id 列表，顺序即对比顺序
+    evaluation_ids = Column(JSON, default=list)
+    # 图表配置：{primary_metric, group_by, show_charts: [...]}
+    chart_config = Column(JSON, default=dict)
+    created_at = Column(DateTime, default=_now)
+    updated_at = Column(DateTime, default=_now, onupdate=_now)
+    owner = relationship("User", foreign_keys=[owner_user_id])
 
 
 class SchemaVersion(Base):

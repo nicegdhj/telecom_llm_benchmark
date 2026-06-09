@@ -31,7 +31,7 @@ task_101_datasets = [
     dict(
         type=CustomDataset,
         abbr="task_101",
-        path="data/custom_task/task_1011.jsonl",
+        path="data/custom_task/task_101.jsonl",
         reader_cfg=task_101_reader_cfg,
         infer_cfg=task_101_infer_cfg,
         eval_cfg=task_101_eval_cfg,

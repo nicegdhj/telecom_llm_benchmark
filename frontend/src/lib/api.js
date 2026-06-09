@@ -1,6 +1,7 @@
 import { useAuthStore } from '../store/authStore';
 
-const API_BASE = import.meta.env.VITE_API_BASE || '/api/v1';
+// API 也挂在统一前缀下：/chuilei/eval/api/v1（前缀来自 vite base）
+const API_BASE = import.meta.env.VITE_API_BASE || `${import.meta.env.BASE_URL}api/v1`;
 
 function getToken() {
   return localStorage.getItem('eval_auth_token') || '';
@@ -25,7 +26,7 @@ async function request(endpoint, options = {}) {
 
   if (res.status === 401) {
     useAuthStore.getState().clearSession();
-    window.location.href = '/login';
+    window.location.href = `${import.meta.env.BASE_URL}login`;
     return;
   }
 
@@ -92,6 +93,15 @@ export const api = {
     revisions: (id) => request(`/batches/${id}/revisions`),
     rerun: (id, data) => request(`/batches/${id}/rerun`, { method: 'POST', body: JSON.stringify(data) }),
     clone: (id, data = {}) => request(`/batches/${id}/clone`, { method: 'POST', body: JSON.stringify(data) }),
+    cellDetail: (id, mid, tid) => request(`/batches/${id}/cells/${mid}/${tid}`),
+    cellSwitchPointer: (id, mid, tid, data) =>
+      request(`/batches/${id}/cells/${mid}/${tid}/pointer`, {
+        method: 'PUT', body: JSON.stringify(data),
+      }),
+    cellRerun: (id, mid, tid, data) =>
+      request(`/batches/${id}/cells/${mid}/${tid}/rerun`, {
+        method: 'POST', body: JSON.stringify(data),
+      }),
   },
 
   jobs: {
@@ -101,6 +111,7 @@ export const api = {
     },
     get: (id) => request(`/jobs/${id}`),
     log: (id) => request(`/jobs/${id}/log`),
+    frameworkLog: (id) => request(`/jobs/${id}/framework-log`),
     cancel: (id) => request(`/jobs/${id}/cancel`, { method: 'POST' }),
   },
 
@@ -110,6 +121,52 @@ export const api = {
 
   evaluations: {
     get: (id) => request(`/evaluations/${id}`),
+    search: (params = {}) => {
+      const qs = new URLSearchParams();
+      for (const [k, v] of Object.entries(params)) {
+        if (v === undefined || v === null || v === '') continue;
+        if (Array.isArray(v)) v.forEach((x) => qs.append(k, x));
+        else qs.append(k, v);
+      }
+      const s = qs.toString();
+      return request(`/evaluations/search${s ? `?${s}` : ''}`);
+    },
+  },
+
+  analyticsViews: {
+    list: () => request('/analysis-views'),
+    get: (id) => request(`/analysis-views/${id}`),
+    create: (data) => request('/analysis-views', { method: 'POST', body: JSON.stringify(data) }),
+    update: (id, data) => request(`/analysis-views/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    del: (id) => request(`/analysis-views/${id}`, { method: 'DELETE' }),
+    // 导出走原始 fetch，因为我们要拿 blob
+    exportZip: async (id, filename) => {
+      const token = localStorage.getItem('eval_auth_token') || '';
+      const qs = filename ? `?filename=${encodeURIComponent(filename)}` : '';
+      const res = await fetch(`${API_BASE}/analysis-views/${id}/export${qs}`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const blob = await res.blob();
+      const cd = res.headers.get('content-disposition') || '';
+      const m = cd.match(/filename="?([^"]+)"?/);
+      return { blob, filename: m ? m[1] : `analysis_${id}.zip` };
+    },
+    // 临时导出：直接对当前勾选的 evaluation_ids 打包，不必先存模板
+    exportAdhoc: async ({ evaluation_ids, filename }) => {
+      const token = localStorage.getItem('eval_auth_token') || '';
+      const res = await fetch(`${API_BASE}/analysis-views/export-adhoc`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ evaluation_ids, filename: filename || null }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const blob = await res.blob();
+      const cd = res.headers.get('content-disposition') || '';
+      const m = cd.match(/filename="?([^"]+)"?/);
+      return { blob, filename: m ? m[1] : 'export.zip' };
+    },
   },
 };
 

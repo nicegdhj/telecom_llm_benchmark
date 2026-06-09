@@ -41,10 +41,11 @@ def test_scan_eval_output_reads_summary(tmp_path):
     task_id = "abc"
     eval_ver = "eval_v2"
     suite = "task_34_suite"
-    eval_dir = s.workspace_dir / "outputs" / task_id / eval_ver / suite
+    eval_dir = s.workspace_dir / "outputs" / task_id / eval_ver
     eval_dir.mkdir(parents=True)
-    (eval_dir / "summary.json").write_text(json.dumps({
-        "accuracy": 87.5, "num_samples": 500,
+    (eval_dir / "report.json").write_text(json.dumps({
+        "accuracy": 87.5,
+        "tasks": [{"suite": suite, "num_samples": 500}],
     }))
     info = scan_eval_output(s, task_id, eval_ver, suite)
     assert info["accuracy"] == 87.5

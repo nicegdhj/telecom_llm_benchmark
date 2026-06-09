@@ -86,7 +86,7 @@ def test_get_job_log_ok(client, tmp_path):
         jid = job.id
     r = client.get(f"/api/v1/jobs/{jid}/log")
     assert r.status_code == 200
-    assert r.text == "docker log output here"
+    assert r.json()["log"] == "docker log output here"
 
 
 def test_cancel_job_not_found(client):
@@ -115,3 +115,46 @@ def test_cancel_already_done_job(client):
         jid = job.id
     r = client.post(f"/api/v1/jobs/{jid}/cancel")
     assert r.status_code == 400
+
+
+def test_framework_log_collects_ais_bench_out(client):
+    """infer job 的框架日志：定位 outputs/<otid>/details/**/logs/infer/**/*.out 并返回内容。"""
+    from datetime import datetime
+    from backend.app.config import get_settings
+    from backend.app.models import Prediction
+
+    bid, mid, tid = _seed(client)
+    otid = "batchX_m1_t1_20260101_000000"
+
+    # 造一个 ais_bench .out 框架日志文件
+    settings = get_settings()
+    log_file = (settings.workspace_dir / "outputs" / otid /
+                "details" / "20260101_000000" / "logs" / "infer" / "gw")
+    log_file.mkdir(parents=True, exist_ok=True)
+    (log_file / "task_1.out").write_text("FRAMEWORK INTERNAL LOG LINE", encoding="utf-8")
+
+    with get_session() as s:
+        p = Prediction(model_id=mid, task_id=tid, status="success",
+                       output_task_id=otid, job_id=None)
+        s.add(p); s.flush()
+        job = Job(type="infer", batch_id=bid, model_id=mid, task_id=tid,
+                  params_json={}, status="success", produces_prediction_id=p.id)
+        s.add(job); s.commit()
+        jid = job.id
+
+    r = client.get(f"/api/v1/jobs/{jid}/framework-log")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["available"] is True
+    assert "FRAMEWORK INTERNAL LOG LINE" in body["log"]
+
+
+def test_framework_log_absent_returns_available_false(client):
+    """无产物 / 无 .out 时，available=False。"""
+    bid, mid, tid = _seed(client)
+    with get_session() as s:
+        job = s.query(Job).filter_by(batch_id=bid).first()
+        jid = job.id
+    r = client.get(f"/api/v1/jobs/{jid}/framework-log")
+    assert r.status_code == 200
+    assert r.json()["available"] is False

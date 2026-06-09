@@ -31,13 +31,22 @@ const CANCELLABLE = new Set(['pending', 'running']);
 export function JobsPage() {
   const qc = useQueryClient();
   const [statusFilter, setStatusFilter] = useState('');
+  const [batchIdFilter, setBatchIdFilter] = useState('');
   const [logJob, setLogJob] = useState(null);
   const [logOpen, setLogOpen] = useState(false);
   const [confirmCancelId, setConfirmCancelId] = useState(null);
 
   const { data: jobs, isLoading } = useQuery({
-    queryKey: ['jobs', { status: statusFilter }],
-    queryFn: () => api.jobs.list(statusFilter ? { status: statusFilter } : {}),
+    queryKey: ['jobs', { status: statusFilter, batch_id: batchIdFilter }],
+    queryFn: () => {
+      const params = {};
+      if (statusFilter) params.status = statusFilter;
+      const bid = batchIdFilter.trim();
+      if (bid && /^\d+$/.test(bid)) {
+        params.batch_id = parseInt(bid, 10);
+      }
+      return api.jobs.list(params);
+    },
     refetchOnMount: 'always',
   });
 
@@ -57,21 +66,47 @@ export function JobsPage() {
         </div>
       </div>
 
-      <div className="flex items-center gap-2 mb-4 flex-wrap">
-        {STATUS_FILTERS.map(f => (
-          <button
-            key={f.value}
-            onClick={() => setStatusFilter(f.value)}
-            className={`px-3.5 py-1.5 rounded-full text-[12px] font-semibold transition-all ${
-              statusFilter === f.value
-                ? 'text-white shadow-sm'
-                : 'border border-gray-200 text-gray-600 hover:border-gray-300 bg-white'
-            }`}
-            style={statusFilter === f.value ? { background: '#0C5CAB' } : {}}
-          >
-            {f.label}
-          </button>
-        ))}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
+        <div className="flex items-center gap-2 flex-wrap">
+          {STATUS_FILTERS.map(f => (
+            <button
+              key={f.value}
+              onClick={() => setStatusFilter(f.value)}
+              className={`px-3.5 py-1.5 rounded-full text-[12px] font-semibold transition-all ${
+                statusFilter === f.value
+                  ? 'text-white shadow-sm'
+                  : 'border border-gray-200 text-gray-600 hover:border-gray-300 bg-white'
+              }`}
+              style={statusFilter === f.value ? { background: '#0C5CAB' } : {}}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+
+        {/* 搜索框 */}
+        <div className="relative flex items-center">
+          <input
+            type="text"
+            placeholder="输入测评任务ID搜索..."
+            value={batchIdFilter}
+            onChange={(e) => {
+              const val = e.target.value;
+              if (val === '' || /^\d+$/.test(val)) {
+                setBatchIdFilter(val);
+              }
+            }}
+            className="w-[200px] pl-3 pr-8 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
+          />
+          {batchIdFilter && (
+            <button
+              onClick={() => setBatchIdFilter('')}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs transition-colors"
+            >
+              ✕
+            </button>
+          )}
+        </div>
       </div>
 
       <Card>
@@ -79,25 +114,31 @@ export function JobsPage() {
           <table className="min-w-full">
             <thead>
               <tr className="border-b border-gray-100">
-                {['测评任务ID', '类型', '状态', '模型', '提交人', '创建时间', '日志', '操作'].map(h => (
+                {['测评任务ID', '数据集', '类型', '版本号', '状态', '模型', '提交人', '创建时间', '日志', '操作'].map(h => (
                   <th key={h} className="px-4 py-3 text-center text-[11px] font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
               {isLoading ? (
-                <tr><td colSpan={8} className="px-4 py-8 text-center text-sm text-gray-400">加载中...</td></tr>
+                <tr><td colSpan={10} className="px-4 py-8 text-center text-sm text-gray-400">加载中...</td></tr>
               ) : jobs?.length === 0 ? (
-                <tr><td colSpan={8} className="px-4 py-12 text-center text-sm text-gray-400">暂无记录</td></tr>
+                <tr><td colSpan={10} className="px-4 py-12 text-center text-sm text-gray-400">暂无记录</td></tr>
               ) : jobs?.map(job => (
                 <tr key={job.id} className="trow transition-colors">
                   <td className="px-4 py-3.5 text-center text-[13px] text-primary-600 font-medium">
                     {job.batch_id ?? '—'}
                   </td>
+                  <td className="px-4 py-3.5 text-center text-[13px] text-gray-700 font-medium">
+                    {job.task_key ?? '—'}
+                  </td>
                   <td className="px-4 py-3.5 text-center">
                     <span className={`px-2 py-0.5 rounded-md text-[11px] font-semibold ${
                       job.type === 'infer' ? 'bg-blue-50 text-blue-700' : 'bg-purple-50 text-purple-700'
                     }`}>{job.type}</span>
+                  </td>
+                  <td className="px-4 py-3.5 text-center text-[12px] font-mono text-gray-600">
+                    {job.version_label ?? '—'}
                   </td>
                   <td className="px-4 py-3.5 text-center"><StatusBadge status={job.status} /></td>
                   <td className="px-4 py-3.5 text-center text-[13px] text-gray-700 max-w-[160px] truncate">{job.model_name || '—'}</td>

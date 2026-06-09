@@ -21,6 +21,8 @@ def test_build_infer_cmd_custom_task(tmp_path):
         env_file=tmp_path / "env",
         output_task_id="mixed_eval_xyz",
         model_config_key="local_qwen",
+        model_name="qwen",
+        concurrency=4,
         task_type="custom",
         custom_task_num=34,
         suite_name="task_34_suite",
@@ -40,6 +42,7 @@ def test_build_infer_cmd_generic(tmp_path):
     cmd = build_infer_cmd(
         settings=s, job_id=1, env_file=tmp_path/"e",
         output_task_id="t", model_config_key="local_qwen",
+        model_name="qwen", concurrency=4,
         task_type="generic", custom_task_num=None,
         suite_name="mmlu_redux_gen_5_shot_str",
     )

@@ -1,7 +1,7 @@
 import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard, Cpu, Gavel, ListChecks, FolderKanban,
-  Activity, Settings, Users, LogOut
+  Activity, Settings, Users, LogOut, BarChart3
 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import { api } from '../../lib/api';
@@ -15,6 +15,7 @@ const navItems = [
   { to: '/tasks', icon: ListChecks, label: '任务与数据' },
   { to: '/batches', icon: FolderKanban, label: '测评管理' },
   { to: '/jobs', icon: Activity, label: '执行记录' },
+  { to: '/analytics', icon: BarChart3, label: '测评分析' },
   { to: '/settings', icon: Settings, label: '设置' },
 ];
 
@@ -34,7 +35,7 @@ export function Sidebar() {
   async function handleLogout() {
     try { await api.auth.logout(); } catch {}
     clearSession();
-    window.location.href = '/login';
+    window.location.href = `${import.meta.env.BASE_URL}login`;
   }
 
   return (

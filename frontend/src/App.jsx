@@ -10,6 +10,7 @@ import { TasksPage } from './features/tasks/TasksPage';
 import { BatchesPage } from './features/batches/BatchesPage';
 import { BatchDetailPage } from './features/batches/BatchDetailPage';
 import { JobsPage } from './features/jobs/JobsPage';
+import { AnalyticsPage } from './features/analytics/AnalyticsPage';
 import { UsersPage } from './features/users/UsersPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { NotFoundPage } from './pages/NotFoundPage';
@@ -34,6 +35,7 @@ const router = createBrowserRouter([
       { path: 'batches', element: <BatchesPage /> },
       { path: 'batches/:id', element: <BatchDetailPage /> },
       { path: 'jobs', element: <JobsPage /> },
+      { path: 'analytics', element: <AnalyticsPage /> },
       {
         path: 'users',
         element: (
@@ -46,7 +48,10 @@ const router = createBrowserRouter([
       { path: '*', element: <NotFoundPage /> },
     ],
   },
-]);
+], {
+  // 前缀来自 vite base（/chuilei/eval/），去掉尾斜杠交给 React Router
+  basename: import.meta.env.BASE_URL.replace(/\/$/, ''),
+});
 
 export default function App() {
   return <RouterProvider router={router} />;
