@@ -15,12 +15,13 @@ abs_base_data_path = os.path.abspath(base_data_path)
 if os.path.exists(abs_base_data_path):
     for root, dirs, files in os.walk(abs_base_data_path):
         for file in files:
-            if file.endswith('.xlsx') and not file.startswith('~'):
+            if (file.endswith('.xlsx') or file.endswith('.jsonl')) and not file.startswith('~'):
                 # Get relative path from base_data_path, e.g. "无线/无线-测试题库-杭州.xlsx"
                 rel_path = os.path.relpath(os.path.join(root, file), abs_base_data_path)
                 
                 # dataset name like '无线_无线-测试题库-杭州'
-                name = rel_path.replace('.xlsx', '').replace('/', '_').replace('\\', '_')
+                base_name, _ = os.path.splitext(rel_path)
+                name = base_name.replace('/', '_').replace('\\', '_')
                 
                 infer_cfg = dict(
                     prompt_template=dict(

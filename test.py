@@ -37,7 +37,7 @@ if sys.platform == "darwin":
     
 DATASETS = [
     # 'mmlu_redux_gen_5_shot_str.py',
-    'ceval_gen_0_shot_str.py',
+    # 'ceval_gen_0_shot_str.py',
     # 'gpqa_gen_0_shot_str.py',
     # 'bbh_gen_3_shot_cot_chat.py',
     # 'BFCL_gen_simple.py',
@@ -63,7 +63,7 @@ DATASETS = [
     # 'task_44_suite.py',
     # 'task_60_suite.py',
     # 'alarm_data_gen_0_shot.py',
-    # 'expert_qa_gen.py'
+    'expert_qa_gen.py'
 ]
 # MODEL = 'maas_jt_api'
 MODEL = 'bailian_qwen_plus'
@@ -84,7 +84,7 @@ def run_single_dataset(dataset_name):
             '--max-num-workers', '1',
             '--debug',
             '--num-prompts', '1',
-            '--mode','eval',
+            '--mode','all',
             '--reuse','20260417_160614'
         ]
         
