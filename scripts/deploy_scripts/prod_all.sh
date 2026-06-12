@@ -127,7 +127,7 @@ cat > "$PKG_DIR/docker-compose.prod.yml" << 'COMPOSE_EOF'
 # 用法：
 #   1. cp .env.example .env && vi .env   # 填 WORKSPACE_DIR / BACKEND_DATA_DIR
 #   2. bash init_workspace.sh            # 铺 code + 建目录（读取 .env）
-#   3. docker compose -f docker-compose.prod.yml --env-file .env up -d
+#   3. docker-compose -f docker-compose.prod.yml --env-file .env up -d
 # 访问： http://<服务器IP>/chuilei/eval/
 # ──────────────────────────────────────────────────────────────────
 
@@ -208,7 +208,7 @@ cp -r "$HERE/code/." "$WORKSPACE_DIR/code/"
 echo "✅ 完成。目录结构："
 echo "   WORKSPACE_DIR   = $WORKSPACE_DIR  (data/ outputs/ code/)"
 echo "   BACKEND_DATA_DIR= $BACKEND_DATA_DIR (envs/ logs/ eval_backend.db)"
-echo "下一步： docker compose -f docker-compose.prod.yml --env-file .env up -d"
+echo "下一步： docker-compose -f docker-compose.prod.yml --env-file .env up -d"
 INIT_EOF
 chmod +x "$PKG_DIR/init_workspace.sh"
 
@@ -241,13 +241,13 @@ cat > "$PKG_DIR/README.txt" << 'README_EOF'
        bash init_workspace.sh
 
   4. 启动：
-       docker compose -f docker-compose.prod.yml --env-file .env up -d
+       docker-compose -f docker-compose.prod.yml --env-file .env up -d
 
   5. 访问（注意带前缀，裸 / 会 301 跳转）：
        http://<服务器IP>/chuilei/eval/
 
   6. 日志 / 状态：
-       docker compose -f docker-compose.prod.yml logs -f
+       docker-compose -f docker-compose.prod.yml logs -f
        docker ps
 
 要点：
@@ -282,6 +282,6 @@ echo "    cd /opt && tar -xzf ${PACKAGE_NAME}.tar.gz && cd score_platform"
 echo "    docker load < score-platform-images.tar.gz"
 echo "    cp .env.example .env && vi .env"
 echo "    bash init_workspace.sh"
-echo "    docker compose -f docker-compose.prod.yml --env-file .env up -d"
+echo "    docker-compose -f docker-compose.prod.yml --env-file .env up -d"
 echo "    # 访问 http://<服务器IP>/chuilei/eval/"
 echo "======================================================"

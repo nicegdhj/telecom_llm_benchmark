@@ -95,7 +95,7 @@ vi .env   # 填写 WORKSPACE_DIR、BACKEND_DATA_DIR、管理员密码
 bash init_workspace.sh
 
 # 5. 启动服务
-docker compose -f docker-compose.prod.yml --env-file .env up -d
+docker-compose -f docker-compose.prod.yml --env-file .env up -d
 ```
 
 访问（整个应用挂载于 `/chuilei/eval/` 前缀，裸 `/` 会 301 跳转过去）：
