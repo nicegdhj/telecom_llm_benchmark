@@ -136,7 +136,7 @@ services:
     image: score-frontend:latest
     container_name: score-front
     ports:
-      - "80:80"          # 对外唯一入口；如 80 被占用改为 "8888:80"
+      - "${FRONT_PORT:-8087}:80"   # 宿主机端口取自 .env 的 FRONT_PORT（默认 8087）；容器内 nginx 固定 80
     depends_on:
       - score-backend
     networks:
@@ -175,6 +175,9 @@ COMPOSE_EOF
 cat > "$PKG_DIR/.env.example" << 'ENV_EOF'
 # ── Score Platform 生产环境配置 ──────────────────────────────────
 # 复制为 .env 后填写实际值
+
+# 前端对外端口（宿主机），按需修改；容器内 nginx 固定 80
+FRONT_PORT=8087
 
 # Workspace / 数据目录（宿主机绝对路径，容器内外保持一致）
 WORKSPACE_DIR=/opt/eval_workspace

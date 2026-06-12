@@ -11,12 +11,12 @@
 
 | 组件 | 镜像 | 角色 | 对外端口 |
 |------|------|------|---------|
-| 前端 | `score-frontend:latest` | nginx + React，整个应用挂载于 `/chuilei/eval/`，并反代 API 到后端 | **80（唯一入口）** |
+| 前端 | `score-frontend:latest` | nginx + React，整个应用挂载于 `/chuilei/eval/`，并反代 API 到后端 | **宿主机 `FRONT_PORT`（默认 8087）→ 容器 80** |
 | 后端 | `score-backend:latest` | FastAPI + Worker，调度评测、存库、出报告 | 仅内网络 `expose 8080` |
 | 算子 | `benchmark-eval:latest` | ais_bench 评测容器，**由后端经 docker.sock 动态 `docker run`，跑完即销毁** | 无 |
 
 ```
-浏览器 ──http://IP/chuilei/eval/──▶ score-front(nginx:80)
+浏览器 ──http://IP:8087/chuilei/eval/──▶ score-front(宿主8087→容器nginx:80)
                                        │  静态资源 + 反代 /chuilei/eval/api/ → score-backend:8080
                                        ▼
                                   score-backend(FastAPI+Worker)
@@ -48,7 +48,7 @@
 - 已安装 Docker + docker-compose（V1，`docker-compose version` 可用）
 - 磁盘建议 ≥ 50 GB（镜像约 4 GB，`outputs/` 评测结果会持续增长）
 - 网络可访问被测/打分模型服务的 `IP:PORT`
-- 80 端口空闲（被占用见 §8）
+- 对外端口（默认 `FRONT_PORT=8087`）空闲；被占用见 §11，改 `.env` 即可换端口
 
 ---
 
@@ -118,7 +118,7 @@ docker-compose -f docker-compose.prod.yml --env-file .env up -d
 **访问**（注意带前缀，裸 `/` 会 301 跳过去）：
 
 ```
-http://<910C_IP>/chuilei/eval/
+http://<910C_IP>:8087/chuilei/eval/
 ```
 
 用 `.env` 里的管理员账号登录。
@@ -128,6 +128,9 @@ http://<910C_IP>/chuilei/eval/
 ## 6. 配置详解（.env）
 
 ```bash
+# 前端对外端口（宿主机），按需修改；容器内 nginx 固定 80
+FRONT_PORT=8087
+
 # Workspace / 数据目录（宿主机绝对路径，容器内外保持一致）
 WORKSPACE_DIR=/opt/eval_workspace
 BACKEND_DATA_DIR=/opt/eval_backend_data
@@ -139,6 +142,7 @@ EVAL_BACKEND_ADMIN_PASSWORD=change_me_please
 
 | 变量 | 说明 |
 |------|------|
+| `FRONT_PORT` | 前端对外的**宿主机端口**，默认 8087。访问即 `http://<IP>:<FRONT_PORT>/chuilei/eval/`。改端口只改这里，无需动 compose。 |
 | `WORKSPACE_DIR` | 数据/结果/业务脚本根目录。**宿主机与容器内必须同路径**，生产建议 `/opt/eval_workspace`。 |
 | `BACKEND_DATA_DIR` | 平台数据库、运行日志、动态 env。容器内固定挂到 `/opt/eval_backend_data`。 |
 | `EVAL_BACKEND_ADMIN_USERNAME/PASSWORD` | **仅首次启动建库时写入**。之后改密码请登录平台操作，改 .env 无效。 |
@@ -189,11 +193,11 @@ docker-compose -f docker-compose.prod.yml ps          # score-front / score-back
 docker-compose -f docker-compose.prod.yml logs -f score-backend
 
 # 入口连通性（裸路径应 301 到 /chuilei/eval/）
-curl -I http://localhost/                              # 期望 301
-curl -I http://localhost/chuilei/eval/                # 期望 200
+curl -I http://localhost:8087/                              # 期望 301
+curl -I http://localhost:8087/chuilei/eval/                # 期望 200
 ```
 
-浏览器打开 `http://<910C_IP>/chuilei/eval/` → 登录 → 进入仪表盘即部署成功。
+浏览器打开 `http://<910C_IP>:8087/chuilei/eval/` → 登录 → 进入仪表盘即部署成功。
 
 ---
 
@@ -239,7 +243,8 @@ docker-compose -f docker-compose.prod.yml --env-file .env up -d   # 启动
 | 现象 | 原因 | 处理 |
 |------|------|------|
 | `docker load` 报 `exec format error` / 启动即退出 | 镜像与机器**跨架构**（在 x86 打的包） | 必须在 ARM64 机器重新 `prod_all.sh` |
-| 80 端口被占用 | 宿主机已有服务占 80 | 改 `docker-compose.prod.yml` 中 score-front `ports` 为 `"8888:80"`，访问 `http://IP:8888/chuilei/eval/` |
+| 端口被占用 / 启动报 `address already in use` | 宿主机已有服务占用该端口 | 改 `.env` 的 `FRONT_PORT`（如 8087→别的值），重新 `up -d` |
+| 访问端口后**莫名跳到另一个端口**（如访问 80 跳到 9096） | 该端口被**宿主机上别的服务**占用，score-front 因冲突没起来，命中的是旧服务 | `docker-compose ps` 确认 score-front 是否 Up；`lsof -i :<端口>` 查占用；换一个空闲 `FRONT_PORT` |
 | 提交评测后 job 一直 pending / 立即失败 | 算子容器起不来 | 见下三项逐一排查 |
 | 算子容器报挂载失败 / 找不到 eval_entry.py | `code/` 没铺好，或 `WORKSPACE_DIR` 内外路径不一致 | 重跑 `bash init_workspace.sh`；确认 .env 的 `WORKSPACE_DIR` 是宿主机真实绝对路径 |
 | 后端日志 `permission denied /var/run/docker.sock` | 后端容器无权访问宿主 docker | 确认 socket 已挂载；宿主 `chmod 666 /var/run/docker.sock` 或将运行用户加入 docker 组 |
@@ -262,5 +267,5 @@ docker load < score-platform-images.tar.gz
 cp .env.example .env && vi .env
 bash init_workspace.sh
 docker-compose -f docker-compose.prod.yml --env-file .env up -d
-# 访问 http://<910C_IP>/chuilei/eval/
+# 访问 http://<910C_IP>:8087/chuilei/eval/
 ```
