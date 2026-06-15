@@ -63,6 +63,8 @@ workspace/
 .github/
 
 # Smoke tests
+smoke_tests/.DS_Store
+
 smoke_tests//.worktrees/
 
 # Docker ais_bench - 包含大型预下载数据及构建产物，不纳入版本控制
