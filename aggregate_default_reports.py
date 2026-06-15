@@ -31,8 +31,8 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import pandas as pd
 
-# 复用原脚本的 CoT 提取逻辑，保证 token 统计口径一致
-from aggregate_eval_reports import extract_cot_text
+# 复用原脚本的辅助函数，保证口径一致
+from aggregate_eval_reports import extract_cot_text, _fmt_value
 
 
 # ── 任务名映射（复用 aggregate_eval_reports.py 逻辑）────────────────────────────
@@ -263,6 +263,79 @@ def scan_default(default_dir: str):
     return models
 
 
+# ── 生成明细 Excel（每个任务一个文件）─────────────────────────────────────────────
+
+def process_detail_files(models: dict, default_dir: str, name_map: dict,
+                         target_dir: str):
+    """
+    读取每个任务的 *_details.jsonl，生成明细 Excel。
+    输出路径：target_dir/details/<mapped_task>/<model>/<task>_details.xlsx
+    """
+    import re
+    total_files = 0
+    total_rows = 0
+    for model, task_recs in models.items():
+        for raw_task, rec in task_recs.items():
+            details_path = Path(default_dir) / rec["timestamp"] / "results" / model / f"{raw_task}_details.jsonl"
+            if not details_path.exists():
+                continue
+
+            mapped = get_mapped_suite(raw_task, name_map)
+            # 文件名去掉斜杠等非法字符
+            safe_mapped = re.sub(r'[\\/:*?"<>|]', '_', mapped)
+            out_dir = os.path.join(target_dir, "details", safe_mapped, model)
+            os.makedirs(out_dir, exist_ok=True)
+            out_path = os.path.join(out_dir, f"{raw_task}_details.xlsx")
+
+            rows: List[Dict[str, Any]] = []
+            with open(details_path, encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        obj = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+
+                    eval_res = obj.get("eval_res")
+                    eval_details = obj.get("eval_details")
+                    pred_raw = obj.get("prediction")
+                    origin_prompt = prediction_val = gold = None
+
+                    if isinstance(pred_raw, dict):
+                        origin_prompt = pred_raw.get("origin_prompt", "null")
+                        prediction_val = pred_raw.get("prediction", "null")
+                        gold = pred_raw.get("gold", "null")
+                    elif isinstance(pred_raw, str):
+                        try:
+                            parsed = json.loads(pred_raw)
+                            if isinstance(parsed, dict):
+                                origin_prompt = parsed.get("origin_prompt", "null")
+                                prediction_val = parsed.get("prediction", "null")
+                                gold = parsed.get("gold", "null")
+                            else:
+                                prediction_val = pred_raw
+                        except json.JSONDecodeError:
+                            prediction_val = pred_raw
+
+                    rows.append({
+                        "eval_res": _fmt_value(eval_res),
+                        "eval_details": _fmt_value(eval_details),
+                        "origin_prompt": _fmt_value(origin_prompt),
+                        "prediction": _fmt_value(prediction_val),
+                        "gold": _fmt_value(gold),
+                    })
+
+            if rows:
+                pd.DataFrame(rows).to_excel(out_path, index=False)
+                total_files += 1
+                total_rows += len(rows)
+                print(f"  ✅ [{model}] {mapped}: {len(rows)} 条 → {out_path}")
+
+    print(f"\n📄 明细 Excel 完成: {total_files} 个文件，{total_rows} 条记录")
+
+
 # ── 生成 Excel ─────────────────────────────────────────────────────────────────
 
 def build_report(default_dir: str, output_base_dir: str,
@@ -422,7 +495,12 @@ def build_report(default_dir: str, output_base_dir: str,
                 )
 
     print(f"📊 总体汇总 Excel: {summary_excel}")
-    print(f"✅ 汇总完成 → {target_dir}")
+
+    # ── 生成每个任务的明细 Excel ──────────────────────────────────────────────
+    print("\n📄 生成任务明细 Excel...")
+    process_detail_files(models, default_dir, name_map, target_dir)
+
+    print(f"\n✅ 汇总完成 → {target_dir}")
 
 
 def main():
