@@ -13,6 +13,13 @@ class AlarmDataDataset(BaseDataset):
 
     @staticmethod
     def load(path: str, name: str = None, **kwargs):
+        # If the path does not exist in CWD, try resolving relative to the benchmark root directory
+        if not os.path.exists(path):
+            benchmark_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+            alt_path = os.path.join(benchmark_root, path)
+            if os.path.exists(alt_path):
+                path = alt_path
+
         if os.path.isdir(path):
             if name:
                 full_path = os.path.join(path, f"{name}.json")
@@ -53,7 +60,8 @@ class AlarmDataDataset(BaseDataset):
                     data_list.append({
                         'question': question,
                         'answer': assistant_response,
-                        'reference': assistant_response
+                        'reference': assistant_response,
+                        'gt_edges': item.get('gt_edges', '')
                     })
             else:
                 for line in f:
@@ -82,7 +90,8 @@ class AlarmDataDataset(BaseDataset):
                     data_list.append({
                         'question': question,
                         'answer': assistant_response,
-                        'reference': assistant_response
+                        'reference': assistant_response,
+                        'gt_edges': item.get('gt_edges', '')
                     })
                 
         logger.info(f"[AlarmDataDataset] Loaded {len(data_list)} samples from {full_path}")

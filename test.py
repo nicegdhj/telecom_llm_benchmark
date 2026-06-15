@@ -62,8 +62,8 @@ DATASETS = [
     # 'task_43_suite.py',
     # 'task_44_suite.py',
     # 'task_60_suite.py',
-    # 'alarm_data_gen_0_shot.py',
-    'expert_qa_gen.py'
+    'alarm_data_gen_0_shot.py',
+    # 'expert_qa_gen.py'
 ]
 # MODEL = 'maas_jt_api'
 MODEL = 'bailian_qwen_plus'
@@ -83,9 +83,9 @@ def run_single_dataset(dataset_name):
             '--work-dir', WORK_DIR,
             '--max-num-workers', '1',
             '--debug',
-            '--num-prompts', '1',
+            '--num-prompts', '5',
             '--mode','all',
-            '--reuse','20260417_160614'
+            # '--reuse','20260417_160614'
         ]
         
         from ais_bench.benchmark.cli.task_manager import TaskManager
