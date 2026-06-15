@@ -705,24 +705,28 @@ def reliability_guard(maximum_memory_bytes=None):
     """
 
     if maximum_memory_bytes is not None:
-        import resource
+        try:
+            import resource
+        except ImportError:
+            resource = None
 
-        try:
-            resource.setrlimit(resource.RLIMIT_AS,
-                               (maximum_memory_bytes, maximum_memory_bytes))
-        except (ValueError, resource.error):
-            pass
-        try:
-            resource.setrlimit(resource.RLIMIT_DATA,
-                               (maximum_memory_bytes, maximum_memory_bytes))
-        except (ValueError, resource.error):
-            pass
-        if not platform.uname().system == 'Darwin':
+        if resource is not None:
             try:
-                resource.setrlimit(resource.RLIMIT_STACK,
+                resource.setrlimit(resource.RLIMIT_AS,
                                    (maximum_memory_bytes, maximum_memory_bytes))
             except (ValueError, resource.error):
                 pass
+            try:
+                resource.setrlimit(resource.RLIMIT_DATA,
+                                   (maximum_memory_bytes, maximum_memory_bytes))
+            except (ValueError, resource.error):
+                pass
+            if not platform.uname().system == 'Darwin':
+                try:
+                    resource.setrlimit(resource.RLIMIT_STACK,
+                                       (maximum_memory_bytes, maximum_memory_bytes))
+                except (ValueError, resource.error):
+                    pass
 
     faulthandler.disable()
 

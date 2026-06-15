@@ -2,6 +2,10 @@ import argparse
 import atexit
 import os
 import sys
+
+benchmark_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+sys.path.insert(0, benchmark_dir)
+
 import threading
 import time
 import json

@@ -10,7 +10,7 @@ from backend.app.config import get_settings
 from backend.app.deps import db_session, require_role
 from backend.app.models import DatasetVersion, Task, User
 from backend.app.schemas import DatasetVersionOut, TaskOut
-from backend.app.task_meta import TASK_META
+from backend.app.task_meta import TASK_META, TASK_ORDER
 
 
 router = APIRouter(prefix="/api/v1/tasks", tags=["tasks"])
@@ -37,7 +37,9 @@ def _enrich(task: Task, dataset_count: int) -> TaskOut:
 @router.get("", response_model=list[TaskOut])
 def list_(db: Session = Depends(db_session),
           _: User = Depends(require_role("viewer", "operator", "admin"))):
-    tasks = db.query(Task).order_by(Task.key).all()
+    # 仅展示白名单内任务（对齐 run_mixed_benchmark.sh），并按其在脚本中的顺序排序
+    tasks = [t for t in db.query(Task).all() if t.key in TASK_ORDER]
+    tasks.sort(key=lambda t: TASK_ORDER[t.key])
     counts = dict(
         db.query(DatasetVersion.task_id, func.count())
         .group_by(DatasetVersion.task_id)

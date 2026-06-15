@@ -13,18 +13,7 @@ set -a; source "$(dirname "$0")/.env"; set +a
 
 
 #ais_bench --models common_gateway --datasets task_101_suite --debug --num-prompts 1
-ais_bench --models common_gateway --datasets task_36_suite --debug
-
-
-# task_1_suite
-# task_34_suite
-#      task_36_suite
-# task_43_suite
-#    task_44_suit
-# task_60_suite
-# task_101_suite
-#tele_exam_gen_0_shot_str
-# tele_exam_gen_0_shot
+ais_bench --models common_gateway --datasets task_102_suite --debug --num-prompts 1
 
 
 
@@ -56,6 +45,8 @@ ais_bench --models common_gateway --datasets task_36_suite --debug
 #            opseval_gen_0_shot
 #            identity_gen_0_shot
 #            exam_gen_0_shot
+
+# alarm_data_gen_0_shot
 
 
 

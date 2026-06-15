@@ -16,6 +16,8 @@ const CATEGORY_COLORS = {
   '意图理解-工具调用':'bg-rose-100 text-rose-700',
   '意图理解-分类':    'bg-amber-100 text-amber-700',
   '意图理解-关键信息抽取': 'bg-indigo-100 text-indigo-700',
+  '运维-告警聚类':    'bg-cyan-100 text-cyan-700',
+  '安全-身份认知':    'bg-red-100 text-red-700',
 };
 
 function CategoryBadge({ category }) {

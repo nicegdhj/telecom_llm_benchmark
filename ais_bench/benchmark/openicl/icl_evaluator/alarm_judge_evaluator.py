@@ -97,7 +97,7 @@ class AlarmJudgeEvaluator(LLMJudgeEvaluator):
                 judgements = loop.run_until_complete(_run_api_inference())
         else:
             judgements = self.model.generate(prompts, max_out_len=getattr(self.model, 'max_out_len', 1024))
-            
+
         details = []
         for i, (pred, ref, judge_output, max_score) in enumerate(zip(predictions, references, judgements, max_scores)):
             score = 0.0
@@ -131,8 +131,15 @@ class AlarmJudgeEvaluator(LLMJudgeEvaluator):
                     else:
                         score = 0.0
                 except Exception as e:
-                    self.logger.warning(f"Failed to parse JSON for index {i}: {e}")
-                    pass
+                    self.logger.warning(f"Failed to parse JSON for index {i}: {e}. Fallback to regex.")
+                    def extract_score(key):
+                        match = re.search(rf'"{key}"\s*:\s*([\d.]+)', json_str)
+                        return float(match.group(1)) if match else 0.0
+
+                    clustering = extract_score("clustering")
+                    root_cause = extract_score("root_cause")
+                    hallucination = extract_score("hallucination_check")
+                    score = clustering + root_cause + hallucination
 
             details.append({
                 'prompt': prompts[i],
