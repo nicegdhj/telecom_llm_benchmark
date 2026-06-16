@@ -8,7 +8,7 @@ import { useAuthStore } from '../../store/authStore';
 
 const DEFAULT_FORM = {
   name: '', model_config_key: 'local_qwen', model_name: '',
-  host: '', port: '', url: '', api_key: '', concurrency: '20', gen_kwargs_json: {},
+  host: '', port: '', url: '', api_key: '', auth_header: 'Authorization-Gateway', concurrency: '20', gen_kwargs_json: {},
 };
 
 function deriveNameFromModelName(modelName) {
@@ -30,7 +30,8 @@ const CONFIG_FIELDS = {
   ],
   maas_gateway: [
     { key: 'model_name', label: '模型名',   required: true,  placeholder: 'deepseekv3.1-w8a8' },
-    { key: 'api_key',    label: 'API Key',  required: true,  placeholder: 'Authorization-Gateway Token' },
+    { key: 'api_key',    label: 'API Key',  required: true,  placeholder: '鉴权 Token（值原样发送，如需 Bearer 请自行带上）' },
+    { key: 'auth_header',label: '鉴权头名', placeholder: 'Authorization-Gateway（部分网关用 Authorization）' },
     { key: 'host',       label: 'Host IP',  required: true,  placeholder: '188.x.x.x' },
     { key: 'port',       label: '端口',     required: true,  placeholder: '30175' },
     { key: 'url',        label: '完整 URL', required: true,  placeholder: 'http://host:port/gateway/api/.../v1/chat/completions' },

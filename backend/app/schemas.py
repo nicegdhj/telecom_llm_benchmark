@@ -11,6 +11,7 @@ class ModelCreate(BaseModel):
     port: int | None = None
     url: str | None = None
     api_key: str | None = None
+    auth_header: str | None = "Authorization-Gateway"
     concurrency: int = 20
     gen_kwargs_json: dict[str, Any] = {}
 
@@ -22,6 +23,7 @@ class ModelUpdate(BaseModel):
     port: int | None = None
     url: str | None = None
     api_key: str | None = None
+    auth_header: str | None = None
     concurrency: int | None = None
     gen_kwargs_json: dict[str, Any] | None = None
 
@@ -36,6 +38,7 @@ class ModelOut(BaseModel):
     port: int | None
     url: str | None
     api_key: str | None
+    auth_header: str | None
     concurrency: int
     gen_kwargs_json: dict[str, Any]
     created_at: datetime

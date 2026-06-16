@@ -25,6 +25,8 @@ models = [
         request_rate=0,
         retry=1,
         api_key=os.environ.get("MAAS_API_KEY", ""),
+        # 鉴权头名称可配（默认 Authorization-Gateway；部分网关用 Authorization 等）
+        auth_header=os.environ.get("MAAS_AUTH_HEADER", "Authorization-Gateway"),
         host_ip=os.environ.get("MAAS_HOST_IP", ""),
         host_port=int(os.environ.get("MAAS_HOST_PORT", "30175")),
         # 完整 URL（含网关路径），示例：

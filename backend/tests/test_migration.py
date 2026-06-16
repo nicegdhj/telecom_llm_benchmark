@@ -5,7 +5,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from backend.app.models import Base, SchemaVersion
-from backend.app.services.migration import run_migrations
+from backend.app.services.migration import run_migrations, CURRENT_VERSION
 
 
 def _make_engine(tmp_path: Path):
@@ -14,7 +14,7 @@ def _make_engine(tmp_path: Path):
     return engine
 
 
-def test_migrate_fresh_db_writes_version_2(tmp_path):
+def test_migrate_fresh_db_writes_current_version(tmp_path):
     engine = _make_engine(tmp_path)
     Base.metadata.create_all(engine)
     SessionLocal = sessionmaker(bind=engine)
@@ -22,7 +22,7 @@ def test_migrate_fresh_db_writes_version_2(tmp_path):
         run_migrations(s)
         s.commit()
         assert s.query(SchemaVersion).count() == 1
-        assert s.query(SchemaVersion).first().version == 4
+        assert s.query(SchemaVersion).first().version == CURRENT_VERSION
 
 
 def test_migrate_idempotent(tmp_path):
@@ -36,7 +36,7 @@ def test_migrate_idempotent(tmp_path):
         run_migrations(s)
         s.commit()
         assert s.query(SchemaVersion).count() == 1
-        assert s.query(SchemaVersion).first().version == 4
+        assert s.query(SchemaVersion).first().version == CURRENT_VERSION
 
 
 def test_migrate_old_db_alters_columns(tmp_path):
@@ -46,6 +46,7 @@ def test_migrate_old_db_alters_columns(tmp_path):
     conn.execute("CREATE TABLE batches (id INTEGER PRIMARY KEY, name TEXT)")
     conn.execute("CREATE TABLE batch_revisions (id INTEGER PRIMARY KEY, batch_id INTEGER)")
     conn.execute("CREATE TABLE jobs (id INTEGER PRIMARY KEY, type TEXT)")
+    conn.execute("CREATE TABLE models (id INTEGER PRIMARY KEY, name TEXT)")
     conn.commit()
     conn.close()
 
@@ -67,4 +68,6 @@ def test_migrate_old_db_alters_columns(tmp_path):
     assert "actor_user_id" in cols
     cols = {r[1] for r in conn.execute("PRAGMA table_info(jobs)").fetchall()}
     assert "created_by_user_id" in cols
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(models)").fetchall()}
+    assert "auth_header" in cols
     conn.close()

@@ -67,6 +67,7 @@ def _env_vars_for_model(model: Model) -> dict[str, str]:
         return {**base,
                 "MAAS_MODEL":       model.model_name or "",
                 "MAAS_API_KEY":     model.api_key or "",
+                "MAAS_AUTH_HEADER": model.auth_header or "Authorization-Gateway",
                 "MAAS_HOST_IP":     model.host or "",
                 "MAAS_HOST_PORT":   str(model.port or ""),
                 "MAAS_URL":         model.url or "",

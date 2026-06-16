@@ -25,6 +25,8 @@ class Model(Base):
     # maas_gateway / bailian 使用
     url = Column(String)
     api_key = Column(String)
+    # 鉴权头名称（maas_gateway 用；默认 Authorization-Gateway，部分网关用 Authorization）
+    auth_header = Column(String, default="Authorization-Gateway")
     # 所有配置通用
     model_name = Column(String, nullable=False)
     concurrency = Column(Integer, default=20)

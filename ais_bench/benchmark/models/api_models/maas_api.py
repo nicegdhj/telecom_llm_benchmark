@@ -44,6 +44,7 @@ class MaaSAPI(BaseAPIModel):
             meta_template: Optional[Dict] = None,
             enable_ssl: bool = False,
             verbose: bool = False,
+            auth_header: str = "Authorization-Gateway",
     ):
         super().__init__(
             path=path,
@@ -60,8 +61,8 @@ class MaaSAPI(BaseAPIModel):
             verbose=verbose,
         )
         if api_key:
-            self.headers["Authorization-Gateway"] = f"{api_key}"
-            self.logger.info("API key is set")
+            self.headers[auth_header] = f"{api_key}"
+            self.logger.info(f"API key is set on header: {auth_header}")
         self.meta_template = (
             dict(
                 round=[

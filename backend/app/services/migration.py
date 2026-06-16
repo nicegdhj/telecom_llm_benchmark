@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from backend.app.models import SchemaVersion
 
 
-CURRENT_VERSION = 4
+CURRENT_VERSION = 5
 
 
 def _has_table(session: Session, name: str) -> bool:
@@ -78,6 +78,10 @@ def run_migrations(session: Session):
     _add_column_if_missing(session, "jobs", "version_label", "version_label VARCHAR")
     _ensure_analysis_views_table(session)
     _backfill_version_labels(session)
+
+    # v4 → v5：maas_gateway 鉴权头名称可配（老数据回填默认 Authorization-Gateway）
+    _add_column_if_missing(session, "models", "auth_header",
+                           "auth_header VARCHAR DEFAULT 'Authorization-Gateway'")
 
     _write_version(session, CURRENT_VERSION)
 
