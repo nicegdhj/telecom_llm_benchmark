@@ -48,7 +48,7 @@
 - 已安装 Docker + docker-compose（V1，`docker-compose version` 可用）
 - 磁盘建议 ≥ 50 GB（镜像约 4 GB，`outputs/` 评测结果会持续增长）
 - 网络可访问被测/打分模型服务的 `IP:PORT`
-- 对外端口（默认 `FRONT_PORT=8087`）空闲；被占用见 §11，改 `.env` 即可换端口
+- 对外端口（默认 `FRONT_PORT=8087`）空闲；被占用见 §12，改 `.env` 即可换端口
 
 ---
 
@@ -222,13 +222,7 @@ curl -I http://localhost:8087/chuilei/eval/                # 期望 200
 cp /opt/eval_backend_data/eval_backend.db /opt/backup/eval_backend_$(date +%F).db
 ```
 
-**升级平台**：在打包机重新 `prod_all.sh` → 传新包 → 私域机器：
-```bash
-docker load < score-platform-images.tar.gz      # 覆盖镜像
-bash init_workspace.sh                           # 同步最新 code（覆盖式）
-docker-compose -f docker-compose.prod.yml --env-file .env up -d   # 滚动重启
-```
-> 数据库、outputs 不受影响（在挂载目录里，不随镜像走）。
+**升级平台（系统已上线、要保留老数据）**：见 **§11 迭代更新**，用随包附带的 `upgrade.sh` 一键完成（自动备份数据库 + 停旧起新 + 健康检查）。
 
 **停止 / 启动：**
 ```bash
@@ -238,7 +232,100 @@ docker-compose -f docker-compose.prod.yml --env-file .env up -d   # 启动
 
 ---
 
-## 11. 常见问题排查
+## 11. 迭代更新（在线系统升级，保留老数据）
+
+> 适用：系统**已上线运行一段时间**、积累了模型/批次/评测结果等数据，现在要更新到新版本。
+> 核心原则：**业务数据全在宿主机挂载目录，不随镜像走**；升级只换镜像和 code，数据原样保留，且升级前自动备份。
+
+### 11.1 升级为什么不会丢数据
+
+| 数据 | 位置 | 升级时 |
+|------|------|--------|
+| 平台状态（用户/模型/批次/预测/评测/分析） | `BACKEND_DATA_DIR/eval_backend.db` | 宿主机文件，`down`/`up`/`docker load` 都不碰 |
+| 评测结果产物 | `WORKSPACE_DIR/outputs/` | 宿主机目录，不随镜像走 |
+| 数据集 / 上传版本 | `WORKSPACE_DIR/data/` | 宿主机目录，不随镜像走 |
+| 业务脚本 | `WORKSPACE_DIR/code/` | `init_workspace.sh` 覆盖式同步为新版 |
+
+- `docker-compose down` **不带 `-v`** 只删容器和网络，**绝不动 bind 挂载目录**。
+- 后端新版本启动时会**自动迁移数据库 schema**（幂等的 `run_migrations` + `ALTER TABLE`），并幂等补种任务/init 版本，老数据保留、不重复。
+- 即便如此，`upgrade.sh` 升级前仍会**自动备份 `eval_backend.db`** 并做完整性校验，最坏情况可一键还原。
+
+### 11.2 一键升级（推荐）
+
+打包机（ARM64）重新出包 → 传到私域机 → 解压到**新目录** → 沿用旧 `.env` → 跑 `upgrade.sh`：
+
+```bash
+# 【打包机·ARM64·联网】出新包
+bash scripts/deploy_scripts/prod_all.sh
+scp outputs/score_platform_<新时间戳>.tar.gz user@<910C_IP>:/opt/
+
+# 【私域机·910C】解压到新目录，复用旧 .env
+cd /opt && tar -xzf score_platform_<新时间戳>.tar.gz -C /opt/score_platform_new --strip-components=1 2>/dev/null \
+  || { mkdir -p /opt/score_platform_new && tar -xzf score_platform_<新时间戳>.tar.gz -C /opt/score_platform_new --strip-components=1; }
+cd /opt/score_platform_new
+cp /opt/score_platform/.env ./.env          # 复用线上旧 .env（WORKSPACE_DIR/BACKEND_DATA_DIR 等保持不变）
+
+# 一键升级（会先备份数据库，再停旧起新，最后健康检查）
+bash upgrade.sh
+```
+
+`upgrade.sh` 自动完成 6 步：**前置检查 → 备份数据库 → 导入新镜像 → 停旧容器 → 同步 code → 起新容器 → 健康检查**。
+带的安全检查：必备文件/`.env`/docker、磁盘空间、架构提示、**是否有评测算子容器正在运行**（有则提示，避免中断在跑的任务）、备份完整性校验、启动后健康检查失败给出**回滚指引**。
+
+常用参数：
+
+```bash
+bash upgrade.sh           # 交互确认（默认）
+bash upgrade.sh -y        # 跳过确认，适合自动化
+bash upgrade.sh -h        # 查看说明
+```
+
+> ⚠️ 升级前最好确认**没有正在跑的评测**（`upgrade.sh` 会检测并提示）。停容器会中断后端 Worker，正在执行的算子容器会变孤儿，对应任务需重跑——但**已落库的历史结果不受影响**。
+
+### 11.3 手动升级（等价步骤，便于理解）
+
+```bash
+cd /opt/score_platform_new            # 新版包目录，已复用旧 .env
+set -a; . ./.env; set +a
+
+# 1. 备份数据库（关键！）
+cp "$BACKEND_DATA_DIR/eval_backend.db" "$BACKEND_DATA_DIR/eval_backend_$(date +%F_%H%M%S).db"
+
+# 2. 导入新镜像（覆盖同名 :latest）
+docker load < score-platform-images.tar.gz
+
+# 3. 停旧容器（不带 -v，数据安全）
+docker-compose -f docker-compose.prod.yml --env-file .env down
+
+# 4. 同步业务脚本到 WORKSPACE_DIR/code
+bash init_workspace.sh
+
+# 5. 起新容器
+docker-compose -f docker-compose.prod.yml --env-file .env up -d
+
+# 6. 验证
+curl -fsS http://localhost:${FRONT_PORT:-8087}/chuilei/eval/api/v1/health   # 期望 {"status":"ok"}
+docker-compose -f docker-compose.prod.yml ps
+```
+
+### 11.4 回滚
+
+新版本异常时（健康检查失败 / 功能回归）：
+
+```bash
+docker-compose -f docker-compose.prod.yml --env-file .env down
+# 还原数据库（如新版迁移后想退回，用升级前的备份）
+cp "$BACKEND_DATA_DIR/backups/eval_backend_<时间戳>.db" "$BACKEND_DATA_DIR/eval_backend.db"
+# 重新导入上一版本镜像包（★建议每次升级保留上一版 tar.gz），再 up
+docker load < <上一版本>/score-platform-images.tar.gz
+docker-compose -f docker-compose.prod.yml --env-file .env up -d
+```
+
+> 建议：**每次升级前保留上一版的 `score-platform-images.tar.gz`**（镜像无法从运行中容器反向导出，留包是唯一可靠的镜像回滚手段）；数据库备份在 `BACKEND_DATA_DIR/backups/`，可放心还原。
+
+---
+
+## 12. 常见问题排查
 
 | 现象 | 原因 | 处理 |
 |------|------|------|
@@ -254,7 +341,7 @@ docker-compose -f docker-compose.prod.yml --env-file .env up -d   # 启动
 
 ---
 
-## 12. 一页速查
+## 13. 一页速查
 
 ```bash
 # 【打包机·ARM64·联网】
@@ -268,4 +355,13 @@ cp .env.example .env && vi .env
 bash init_workspace.sh
 docker-compose -f docker-compose.prod.yml --env-file .env up -d
 # 访问 http://<910C_IP>:8087/chuilei/eval/
+```
+
+**已上线系统的升级（保留老数据，见 §11）：**
+
+```bash
+# 打包机出新包并传过去后，私域机解压到新目录、复用旧 .env：
+cd /opt/score_platform_new
+cp /opt/score_platform/.env ./.env
+bash upgrade.sh          # 自动：备份库 → 停旧 → 导入新镜像 → 同步 code → 起新 → 健康检查
 ```

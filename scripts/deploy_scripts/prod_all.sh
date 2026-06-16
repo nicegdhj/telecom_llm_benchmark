@@ -215,6 +215,15 @@ echo "下一步： docker-compose -f docker-compose.prod.yml --env-file .env up 
 INIT_EOF
 chmod +x "$PKG_DIR/init_workspace.sh"
 
+# 5.5b 在线升级脚本（保留老数据；首次部署用不到，升级时用）
+if [ -f "$SCRIPT_DIR/upgrade.sh" ]; then
+    cp "$SCRIPT_DIR/upgrade.sh" "$PKG_DIR/upgrade.sh"
+    chmod +x "$PKG_DIR/upgrade.sh"
+    echo "  ✅ 已附带在线升级脚本 upgrade.sh"
+else
+    echo "  ⚠️  未找到 $SCRIPT_DIR/upgrade.sh，本次包不含升级脚本"
+fi
+
 # 5.6 部署说明
 cat > "$PKG_DIR/README.txt" << 'README_EOF'
 === Score Platform 私域部署说明 ===
@@ -225,6 +234,7 @@ cat > "$PKG_DIR/README.txt" << 'README_EOF'
   ├── docker-compose.prod.yml        # 生产 Compose（后端端口已收口，仅经 nginx 暴露）
   ├── .env.example                   # 环境变量模板
   ├── init_workspace.sh              # 一键建目录 + 铺 code 业务脚本
+  ├── upgrade.sh                     # 【升级用】在线升级脚本（自动备份库+停旧起新+健康检查）
   ├── code/                          # 业务脚本（被后端挂进算子容器，必须完整）
   │   ├── eval_entry.py  eval_judge.py  setup.py
   │   ├── scripts/
@@ -252,6 +262,11 @@ cat > "$PKG_DIR/README.txt" << 'README_EOF'
   6. 日志 / 状态：
        docker-compose -f docker-compose.prod.yml logs -f
        docker ps
+
+升级（系统已上线、再次更新且要保留老数据）：
+  - 解压新版包到一个新目录，cp 旧 .env 过来（或重填），在新目录内执行：
+       bash upgrade.sh          # 自动：备份数据库 → 停旧容器 → 导入新镜像 → 同步 code → 起新容器 → 健康检查
+  - 业务数据（eval_backend.db / outputs / data）在宿主机挂载目录，升级不受影响。
 
 要点：
   - benchmark-eval 由后端经 docker.sock 动态 docker run，无需在 compose 声明。
