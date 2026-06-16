@@ -45,6 +45,15 @@ class ModelOut(BaseModel):
     updated_at: datetime
 
 
+class ConnTestOut(BaseModel):
+    """连通性测试结果。ok=True 时 message='ok'，否则 message 为报错信息。"""
+    ok: bool
+    status: int | None = None
+    latency_ms: int | None = None
+    message: str
+    reply: str | None = None
+
+
 class JudgeCreate(BaseModel):
     name: str
     judge_config_key: str = "local_judge"  # local_judge | api_judge

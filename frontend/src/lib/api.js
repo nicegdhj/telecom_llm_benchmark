@@ -64,6 +64,7 @@ export const api = {
     create: (data) => request('/models', { method: 'POST', body: JSON.stringify(data) }),
     update: (id, data) => request(`/models/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
     del: (id) => request(`/models/${id}`, { method: 'DELETE' }),
+    test: (id) => request(`/models/${id}/test`, { method: 'POST' }),
   },
 
   judges: {
@@ -72,6 +73,7 @@ export const api = {
     create: (data) => request('/judges', { method: 'POST', body: JSON.stringify(data) }),
     update: (id, data) => request(`/judges/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
     del: (id) => request(`/judges/${id}`, { method: 'DELETE' }),
+    test: (id) => request(`/judges/${id}/test`, { method: 'POST' }),
   },
 
   tasks: {

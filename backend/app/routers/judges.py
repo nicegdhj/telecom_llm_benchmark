@@ -4,7 +4,8 @@ from sqlalchemy.orm import Session
 
 from backend.app.deps import db_session, require_role
 from backend.app.models import JudgeLLM, User
-from backend.app.schemas import JudgeCreate, JudgeOut, JudgeUpdate
+from backend.app.schemas import ConnTestOut, JudgeCreate, JudgeOut, JudgeUpdate
+from backend.app.services.connectivity import test_judge
 
 
 router = APIRouter(prefix="/api/v1/judges", tags=["judges"])
@@ -67,3 +68,14 @@ def delete(jid: int,
         raise HTTPException(404)
     db.delete(j)
     db.commit()
+
+
+@router.post("/{jid}/test", response_model=ConnTestOut)
+def test_connectivity(jid: int,
+                      db: Session = Depends(db_session),
+                      _: User = Depends(require_role("operator", "admin"))):
+    """向该打分模型配置发一次最小请求，验证连通性与鉴权是否正常。"""
+    j = db.get(JudgeLLM, jid)
+    if not j:
+        raise HTTPException(404)
+    return test_judge(j)

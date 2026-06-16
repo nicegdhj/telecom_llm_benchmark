@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/api';
 import { Card, CardBody } from '../../components/ui/Card';
 import { Modal } from '../../components/ui/Modal';
+import { ConnectivityTest } from '../../components/ConnectivityTest';
 import { Plus, Pencil, Trash2, Server } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 
@@ -160,6 +161,9 @@ export function ModelsPage() {
                       ) : null;
                     })}
                   </dl>
+                  {canWrite() && (
+                    <ConnectivityTest onTest={() => api.models.test(m.id)} />
+                  )}
                 </CardBody>
               </Card>
             );
