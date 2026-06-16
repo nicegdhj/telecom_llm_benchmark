@@ -38,13 +38,23 @@ def init_db():
             except Exception:
                 pass
 
-    # 权限系统：迁移 + admin 初始化
+    # 权限系统：迁移 + admin 初始化 + 任务/init 版本幂等种植
     from backend.app.services.migration import run_migrations
     from backend.app.services.init_admin import ensure_admin
+    from backend.app.services.seed import (
+        seed_generic_tasks, seed_custom_tasks, seed_init_versions,
+        DEFAULT_GENERIC, DEFAULT_CUSTOM,
+    )
 
     with _SessionLocal() as session:
         run_migrations(session)
         ensure_admin(session, settings.admin_username, settings.admin_password)
+        # 幂等种植：补齐任务行、回填数据路径、挂载 init 版本，
+        # 使任何全新部署（docker/local）首启即得到一致的单库状态。
+        seed_generic_tasks(session, DEFAULT_GENERIC)
+        seed_custom_tasks(session, DEFAULT_CUSTOM)
+        session.flush()  # 确保新建 task.id 可用，供挂载 init 版本
+        seed_init_versions(session)
         session.commit()
 
 
