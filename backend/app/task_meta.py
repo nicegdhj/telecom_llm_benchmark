@@ -57,3 +57,39 @@ ALLOWED_TASK_KEYS: list[str] = [
 
 # key -> 展示序号，供后端排序用
 TASK_ORDER: dict[str, int] = {k: i for i, k in enumerate(ALLOWED_TASK_KEYS)}
+
+
+# 各任务原始评测数据的相对路径（相对代码/数据根目录），用于挂载 init 版本与下载。
+# generic 取自各 suite config 的 path；custom 为 data/custom_task/ 或专用目录。
+# 路径指向文件 → 打包该文件；指向目录 → 打包整个目录。
+TASK_DATA_PATH: dict[str, str] = {
+    # ── 通用任务 ──
+    "alarm_data_gen_0_shot":              "data/alarm_data/train_data_v3_overfit.json",
+    "ceval_gen_0_shot_str":               "data/ceval/formal_ceval",
+    "mmlu_redux_gen_5_shot_str":          "data/mmlu_redux",
+    "teledata_gen_0_shot":                "data/Tele-Data",
+    "gpqa_gen_0_shot_str":                "data/gpqa",
+    "bbh_gen_3_shot_cot_chat":            "data/BBH/data",
+    "BFCL_gen_simple":                    "data/BFCL",
+    "ifeval_0_shot_gen_str":              "data/ifeval/input_data.jsonl",
+    "math500_gen_0_shot_cot_chat_prompt": "data/math",
+    "aime2025_gen_0_shot_chat_prompt":    "data/aime2025/aime2025.jsonl",
+    "telemath_gen_0_cot_shot":            "data/TeleMath",
+    "teleqna_gen_0_shot":                 "data/teleqna",
+    "tspec_gen_0_shot":                   "data/TSpec-LLM",
+    "telequad_gen_0_shot":                "data/TeleQuAD",
+    "tele_exam_gen_0_shot":               "data/telecom-intermediate-exam",
+    "tele_exam_gen_0_shot_str":           "data/telecom-intermediate-exam",
+    "opseval_gen_0_shot":                 "data/OpsEval",
+    "identity_gen_0_shot":                "data/Identity_Exploration",
+    "exam_gen_0_shot":                    "data/exam",
+    # ── 垂类自定义任务 ──
+    "task_1_suite":   "data/custom_task/task_1.jsonl",
+    "task_34_suite":  "data/custom_task/task_34.jsonl",
+    "task_36_suite":  "data/custom_task/task_36.jsonl",
+    "task_43_suite":  "data/custom_task/task_43.jsonl",
+    "task_44_suite":  "data/custom_task/task_44.jsonl",
+    "task_60_suite":  "data/custom_task/task_60.jsonl",
+    "task_101_suite": "data/custom_task/task_101.jsonl",
+    "task_102_suite": "data/task_102",
+}

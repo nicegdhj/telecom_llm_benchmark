@@ -1,5 +1,12 @@
+import io
+import zipfile
+
 from backend.app.db import get_session
-from backend.app.services.seed import seed_generic_tasks, seed_custom_tasks
+from backend.app.services.seed import (
+    seed_generic_tasks,
+    seed_custom_tasks,
+    seed_init_versions,
+)
 
 
 def _seed():
@@ -55,3 +62,26 @@ def test_get_task(client):
 def test_get_task_404(client):
     r = client.get("/api/v1/tasks/99999")
     assert r.status_code == 404
+
+
+def test_init_version_mounted_and_download(client):
+    """seed_init_versions 应挂载 tag=init 默认版本，且可下载为 {key}_v_init.zip。"""
+    with get_session() as s:
+        seed_custom_tasks(s, [36])  # data/custom_task/task_36.jsonl 真实存在
+        s.flush()
+        seed_init_versions(s)
+        s.commit()
+
+    tid = next(t["id"] for t in client.get("/api/v1/tasks").json()
+               if t["key"] == "task_36_suite")
+    versions = client.get(f"/api/v1/tasks/{tid}/datasets").json()
+    init = next(v for v in versions if v["tag"] == "init")
+    assert init["is_default"] is True
+
+    r = client.get(f"/api/v1/tasks/{tid}/datasets/{init['id']}/download")
+    assert r.status_code == 200
+    assert r.headers["content-type"] == "application/zip"
+    assert 'task_36_suite_v_init.zip' in r.headers["content-disposition"]
+    # zip 内容可解析且非空
+    names = zipfile.ZipFile(io.BytesIO(r.content)).namelist()
+    assert len(names) >= 1

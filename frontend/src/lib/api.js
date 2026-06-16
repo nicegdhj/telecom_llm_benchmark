@@ -83,6 +83,26 @@ export const api = {
       body: formData,
       headers: {}, // fetch will set Content-Type with boundary for FormData
     }),
+    // 下载某版本数据为 zip，直接触发浏览器下载（走原始 fetch 拿 blob）
+    downloadDataset: async (taskId, versionId) => {
+      const token = localStorage.getItem('eval_auth_token') || '';
+      const res = await fetch(`${API_BASE}/tasks/${taskId}/datasets/${versionId}/download`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const cd = res.headers.get('content-disposition') || '';
+      const m = cd.match(/filename="?([^"]+)"?/);
+      const filename = m ? m[1] : `dataset_${versionId}.zip`;
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    },
   },
 
   batches: {

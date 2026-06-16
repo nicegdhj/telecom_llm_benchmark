@@ -1,6 +1,6 @@
 """从现有配置种植 Task 表。用法：python -m backend.scripts.seed_tasks"""
 from backend.app.db import get_session, init_db
-from backend.app.services.seed import seed_generic_tasks, seed_custom_tasks
+from backend.app.services.seed import seed_generic_tasks, seed_custom_tasks, seed_init_versions
 
 
 # 与 run_mixed_benchmark.sh 第 284~304 行保持一致的默认任务集
@@ -21,8 +21,10 @@ def main():
     with get_session() as session:
         seed_generic_tasks(session, DEFAULT_GENERIC)
         seed_custom_tasks(session, DEFAULT_CUSTOM)
+        session.flush()  # 确保 task.id 可用，供挂载 init 版本
+        seed_init_versions(session)
         session.commit()
-    print("Seeded tasks.")
+    print("Seeded tasks and init versions.")
 
 
 if __name__ == "__main__":

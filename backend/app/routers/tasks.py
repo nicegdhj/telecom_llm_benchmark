@@ -1,8 +1,11 @@
 import hashlib
+import io
 import json
+import zipfile
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi.responses import StreamingResponse
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
@@ -132,4 +135,48 @@ def list_datasets(tid: int,
         .filter_by(task_id=tid)
         .order_by(DatasetVersion.uploaded_at.desc())
         .all()
+    )
+
+
+def _resolve_data_file(data_path: str) -> Path:
+    """解析数据版本物理路径：依次尝试 workspace_dir、code_dir、项目根。"""
+    settings = get_settings()
+    proj_root = Path(__file__).resolve().parents[3]  # backend/app/routers/tasks.py -> 项目根
+    for base in (settings.workspace_dir, settings.code_dir, proj_root):
+        candidate = base / data_path
+        if candidate.exists():
+            return candidate
+    raise HTTPException(status_code=404, detail=f"数据文件不存在: {data_path}")
+
+
+@router.get("/{tid}/datasets/{vid}/download")
+def download_dataset(
+    tid: int,
+    vid: int,
+    db: Session = Depends(db_session),
+    _: User = Depends(require_role("viewer", "operator", "admin")),
+):
+    task = db.get(Task, tid)
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    dv = db.get(DatasetVersion, vid)
+    if not dv or dv.task_id != tid:
+        raise HTTPException(status_code=404, detail="Dataset version not found")
+
+    src = _resolve_data_file(dv.data_path)
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        if src.is_file():
+            zf.write(src, arcname=src.name)
+        else:  # 目录：打包整个目录（保留顶层目录名）
+            for f in sorted(src.rglob("*")):
+                if f.is_file():
+                    zf.write(f, arcname=str(f.relative_to(src.parent)))
+    buf.seek(0)
+
+    filename = f"{task.key}_v_{dv.tag}.zip"
+    return StreamingResponse(
+        buf,
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )

@@ -3,7 +3,8 @@ import logging
 from pathlib import Path
 from sqlalchemy.orm import Session
 
-from backend.app.models import Task
+from backend.app.models import DatasetVersion, Task
+from backend.app.task_meta import TASK_DATA_PATH
 
 
 def _get_ais_bench_configs() -> Path:
@@ -51,6 +52,7 @@ def seed_generic_tasks(session: Session, suite_names: list[str]):
             type="generic",
             suite_name=suite,
             display_name=suite,
+            default_data_rel_path=TASK_DATA_PATH.get(suite),
             is_llm_judge=_detect_is_llm_judge(suite),
         ))
 
@@ -66,6 +68,32 @@ def seed_custom_tasks(session: Session, task_nums: list[int]):
             suite_name=key,
             display_name=f"Custom Task {num}",
             custom_task_num=num,
-            default_data_rel_path=f"data/custom_task/task_{num}.jsonl",
+            default_data_rel_path=TASK_DATA_PATH.get(key, f"data/custom_task/task_{num}.jsonl"),
             is_llm_judge=False,  # custom tasks use AccEvaluator, not LLMJudgeEvaluator
+        ))
+
+
+def _resolve_data_root() -> Path:
+    """数据根目录（与 ais_bench configs 同级）：开发=项目根，生产=code_dir。"""
+    current = Path(__file__).resolve()
+    for _ in range(4):  # backend/app/services/seed.py -> 项目根
+        current = current.parent
+    return current
+
+
+def seed_init_versions(session: Session):
+    """为每个有原始数据且本地存在的任务挂载 tag=init 的初始数据版本（幂等）。"""
+    data_root = _resolve_data_root()
+    for task in session.query(Task).all():
+        rel = task.default_data_rel_path
+        if not rel or not (data_root / rel).exists():
+            continue
+        if session.query(DatasetVersion).filter_by(task_id=task.id, tag="init").first():
+            continue
+        session.add(DatasetVersion(
+            task_id=task.id,
+            tag="init",
+            data_path=rel,
+            is_default=True,
+            note="初始评测数据",
         ))

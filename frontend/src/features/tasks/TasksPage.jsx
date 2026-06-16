@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/api';
 import { Card, CardBody } from '../../components/ui/Card';
 import { Modal } from '../../components/ui/Modal';
-import { Upload, Database, Check, FileCode2, FlaskConical, BarChart3, Settings2 } from 'lucide-react';
+import { Upload, Download, Database, Check, FileCode2, FlaskConical, BarChart3, Settings2 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import { TASK_DETAIL_META } from '../../lib/taskDetailMeta';
 
@@ -313,21 +313,30 @@ export function TasksPage() {
                       <table className="min-w-full">
                         <thead>
                           <tr className="border-b border-gray-100">
-                            {['Tag', '默认', 'Hash', '上传时间', '备注'].map(h => (
+                            {['Tag', '默认', 'Hash', '上传时间', '备注', '下载'].map(h => (
                               <th key={h} className="px-4 py-3 text-center text-[11px] font-semibold text-gray-400 uppercase tracking-wider">{h}</th>
                             ))}
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-50">
                           {datasets?.length === 0 ? (
-                            <tr><td colSpan={5} className="px-4 py-8 text-center text-sm text-gray-400">暂无数据集版本，点击右上角上传</td></tr>
+                            <tr><td colSpan={6} className="px-4 py-8 text-center text-sm text-gray-400">暂无数据集版本，点击右上角上传</td></tr>
                           ) : datasets?.map(d => (
                             <tr key={d.id} className="hover:bg-gray-50 transition-colors">
                               <td className="px-4 py-3 text-sm font-semibold text-gray-900">{d.tag}</td>
                               <td className="px-4 py-3 text-center">{d.is_default ? <Check size={15} className="text-emerald-500 mx-auto" /> : <span className="text-gray-300">—</span>}</td>
-                              <td className="px-4 py-3 text-xs text-gray-400 font-mono">{d.content_hash?.slice(0, 12)}…</td>
+                              <td className="px-4 py-3 text-xs text-gray-400 font-mono">{d.content_hash ? d.content_hash.slice(0, 12) + '…' : <span className="text-gray-300">—</span>}</td>
                               <td className="px-4 py-3 text-sm text-gray-500">{new Date(d.uploaded_at).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}</td>
                               <td className="px-4 py-3 text-sm text-gray-500">{d.note || <span className="text-gray-300">—</span>}</td>
+                              <td className="px-4 py-3 text-center">
+                                <button
+                                  onClick={() => api.tasks.downloadDataset(selectedTask.id, d.id).catch(() => alert('下载失败'))}
+                                  title="下载该版本数据 (zip)"
+                                  className="text-gray-400 hover:text-indigo-600 transition-colors"
+                                >
+                                  <Download size={16} className="mx-auto" />
+                                </button>
+                              </td>
                             </tr>
                           ))}
                         </tbody>
