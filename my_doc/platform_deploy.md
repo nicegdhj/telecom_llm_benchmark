@@ -95,7 +95,7 @@ scp outputs/score_platform_<时间戳>.tar.gz user@<910C_IP>:/opt/
 
 ---
 
-## 5. 第三步：在私域机器上部署（五步）
+## 5. 第三步：在私域机器上部署（六步）
 
 ```bash
 # 1. 解压
@@ -111,11 +111,17 @@ vi .env        # 见 §6，至少填 WORKSPACE_DIR / BACKEND_DATA_DIR / 管理�
 # 4. 一键建目录 + 铺 code（脚本读取 .env）
 bash init_workspace.sh
 
-# 5. 启动
+# 5. 放数据集（init_workspace 只建空 data/，不含数据集）
+set -a; . ./.env; set +a
+cp -r /你的数据目录/. "$WORKSPACE_DIR/data/"                       # 把现成的完整数据集复制进来
+ln -sf "$WORKSPACE_DIR/data" "$(dirname "$WORKSPACE_DIR")/data"   # generic 任务读 dirname/data，软链到同一份
+ls "$WORKSPACE_DIR/data"                                          # 应能看到 ceval/ custom_task/ 等
+
+# 6. 启动
 docker-compose -f docker-compose.prod.yml --env-file .env up -d
 ```
 
-> ⚠️ `init_workspace.sh` 只建**空** `data/`，**不含数据集**。要真正跑评测，需把数据集放入 `WORKSPACE_DIR/data`，见 **§7.1 数据集放置**（可在启动前或启动后放，挂载在评测时即时生效）。
+> 数据集放置细节（为何分 custom/generic 两个来源、软链原理）见 **§7.1**。数据放好后无需重启，评测时即时挂载。
 
 **访问**（注意带前缀，裸 `/` 会 301 跳过去）：
 
