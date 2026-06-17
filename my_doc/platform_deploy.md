@@ -115,6 +115,8 @@ bash init_workspace.sh
 docker-compose -f docker-compose.prod.yml --env-file .env up -d
 ```
 
+> ⚠️ `init_workspace.sh` 只建**空** `data/`，**不含数据集**。要真正跑评测，需把数据集放入 `WORKSPACE_DIR/data`，见 **§7.1 数据集放置**（可在启动前或启动后放，挂载在评测时即时生效）。
+
 **访问**（注意带前缀，裸 `/` 会 301 跳过去）：
 
 ```
@@ -157,7 +159,7 @@ EVAL_BACKEND_ADMIN_PASSWORD=change_me_please
 
 ```
 /opt/eval_workspace/              ← WORKSPACE_DIR（容器内外同路径）
-├── data/                         评测数据集
+├── data/                         评测数据集（★init 后为空，需自行放入，见 §7.1）
 ├── outputs/                      评测结果（体量大，注意磁盘）
 └── code/                         业务脚本（-v 挂载，改完即生效，无需重建镜像）
     ├── eval_entry.py  eval_judge.py  setup.py
@@ -180,6 +182,39 @@ volumes:
   - ${BACKEND_DATA_DIR}:/opt/eval_backend_data
   - /var/run/docker.sock:/var/run/docker.sock      # docker-in-docker 关键
 ```
+
+### 7.1 数据集放置（重要，`init_workspace.sh` 只建空 data/，不含数据集）
+
+**数据集既不在部署包里，也没烤进镜像**（`benchmark-eval` 镜像声明 `VOLUME ["/app/data"]`，数据靠 `-v` 外挂）。评测时后端起算子容器，按**任务类型**把宿主机数据挂到容器 `/app/data`：
+
+| 任务类型 | 宿主机数据来源（`WORKSPACE_DIR=/opt/eval_workspace` 时） |
+|---------|--------------------------------------------------------|
+| **custom**（task_1/34/36…） | `WORKSPACE_DIR/data` → `/opt/eval_workspace/data` |
+| **generic**（ceval/mmlu/gpqa…） | `dirname(WORKSPACE_DIR)/data` → **`/opt/data`** |
+
+> 「任务与数据」页的版本数来自**数据库**（init 已 seed），所以**列表与 init 版本一定能看到**；磁盘上没有真实数据**不影响 UI**，但**评测会因 `/app/data` 为空而失败**，下载也拉不到文件。
+
+**推荐：一份真实数据 + 一个软链，三处全通（custom / generic / 后端下载）。**
+`init_workspace.sh` 已自动建好 `dirname(WORKSPACE_DIR)/data → WORKSPACE_DIR/data` 软链，你只需把数据集放进 `WORKSPACE_DIR/data`：
+
+```bash
+set -a; . ./.env; set +a
+
+# 把数据集拷/解压到 WORKSPACE_DIR/data，最终形如：
+#   $WORKSPACE_DIR/data/ceval/...  mmlu_redux/...  custom_task/task_1.jsonl ...
+cp -r /你的数据源/* "$WORKSPACE_DIR/data/"        # 或 tar -xzf datasets.tar.gz -C "$WORKSPACE_DIR/data"
+
+# 确认软链存在（init_workspace.sh 已建；缺了就补）
+PARENT_DATA="$(dirname "$WORKSPACE_DIR")/data"
+[ -e "$PARENT_DATA" ] || ln -s "$WORKSPACE_DIR/data" "$PARENT_DATA"
+
+ls -l "$PARENT_DATA"           # 应指向 $WORKSPACE_DIR/data
+ls "$WORKSPACE_DIR/data"       # 应能看到 ceval/ custom_task/ 等真实目录
+```
+
+- `docker run -v` 在**宿主机**解析软链，算子容器照样读到真实数据；不用改 compose、不用重启（挂载在每个 job 起算子容器时即时发生）。
+- 不想用软链也可放两份真实目录：generic 放 `/opt/data`、custom 放 `/opt/eval_workspace/data`，效果一样但占双份空间。
+- 数据集如何传到私域机：在打包机 `tar -czf datasets.tar.gz -C <项目根> data` 后 `scp` 过去，解压到 `WORKSPACE_DIR/data` 即可（数据集体量大，故不随平台包走）。
 
 ---
 

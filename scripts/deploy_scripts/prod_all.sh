@@ -208,9 +208,20 @@ mkdir -p "$BACKEND_DATA_DIR"/{envs,logs}
 echo "铺设业务脚本 → $WORKSPACE_DIR/code ..."
 cp -r "$HERE/code/." "$WORKSPACE_DIR/code/"
 
+# 数据集统一放 WORKSPACE_DIR/data（custom 任务 + 后端下载读这里）；
+# generic 任务由算子容器读 dirname(WORKSPACE_DIR)/data，软链到同一份，避免双份拷贝。
+PARENT_DATA="$(dirname "$WORKSPACE_DIR")/data"
+if [ ! -e "$PARENT_DATA" ]; then
+    ln -s "$WORKSPACE_DIR/data" "$PARENT_DATA"
+    echo "建立 generic 数据软链：$PARENT_DATA → $WORKSPACE_DIR/data"
+fi
+
 echo "✅ 完成。目录结构："
 echo "   WORKSPACE_DIR   = $WORKSPACE_DIR  (data/ outputs/ code/)"
 echo "   BACKEND_DATA_DIR= $BACKEND_DATA_DIR (envs/ logs/ eval_backend.db)"
+echo
+echo "⚠️  数据集需自行放入：$WORKSPACE_DIR/data/（形如 ceval/ mmlu_redux/ custom_task/ ...）"
+echo "    放好后即可评测；generic 任务经上面的软链读同一份。"
 echo "下一步： docker-compose -f docker-compose.prod.yml --env-file .env up -d"
 INIT_EOF
 chmod +x "$PKG_DIR/init_workspace.sh"
