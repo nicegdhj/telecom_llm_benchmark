@@ -119,6 +119,24 @@ def _next_version_label(db: Session, kind: str, batch_id: int | None,
     return f"v{n + 1}_{kind}"
 
 
+def resolve_run_target(task) -> tuple[str, int | None, str]:
+    """决定任务跑哪个固定专属 suite（每个任务的数据路径 + 评估器算子都是固定的）。
+
+    - custom：用 **custom_task_num**（非 DB 主键 id）命中 task_{num}_suite，
+      读固定 data/custom_task/task_{num}.jsonl。用 id 会因 id≠num 跑错任务。
+    - generic：用 suite_name 跑内置数据集（如 alarm_data_gen_0_shot），
+      不因 init 版本被误当 custom。
+
+    返回 (run_task_type, run_custom_task_num, run_suite_name)。
+    """
+    if task.type == "custom":
+        if task.custom_task_num is None:
+            raise RuntimeError(f"custom 任务 {task.key} 缺少 custom_task_num")
+        num = task.custom_task_num
+        return "custom", num, f"task_{num}_suite"
+    return "generic", None, task.suite_name
+
+
 async def _run_infer(db: Session, job: Job, settings):
     """异步执行推理 job，scan 异常时自动将 job 置为 failed（防止卡 running）。"""
     env_file = None
@@ -144,32 +162,39 @@ async def _run_infer(db: Session, job: Job, settings):
                      .order_by(DatasetVersion.uploaded_at.desc())
                      .first())
 
-        if dv:
-            # 如果有已上传的数据集版本，一律将其作为 custom 任务读取和运行
-            src = settings.workspace_dir / dv.data_path
-            dst = settings.workspace_dir / "data" / "custom_task" / f"task_{task.id}.jsonl"
-            dst.parent.mkdir(parents=True, exist_ok=True)
-            if dst.is_symlink() or dst.exists():
-                dst.unlink()
-            # 使用相对路径软链，确保容器内挂载后也能解析
+        # 按任务类型路由到各自固定专属的 suite（数据路径 + 评估器算子）。
+        run_task_type, run_custom_task_num, run_suite_name = resolve_run_target(task)
+        if run_task_type == "custom":
             import os
-            rel = os.path.relpath(src.resolve(), dst.parent)
-            dst.symlink_to(rel)
-            logger.info("dataset symlink (unified): %s -> %s", dst, rel)
+            num = run_custom_task_num
+            canonical = settings.workspace_dir / "data" / "custom_task" / f"task_{num}.jsonl"
+            builtin = canonical.with_name(f"task_{num}.jsonl.builtin")
+            canonical_rel = f"data/custom_task/task_{num}.jsonl"
 
-            run_task_type = "custom"
-            run_custom_task_num = task.id
-            run_suite_name = f"task_{task.id}_suite"
-        else:
-            # 如果没有已上传版本且原本为 custom 任务，则报错（因为 custom 任务必须有上传数据集）
-            if task.type == "custom":
+            # init/内置版本 data_path 即固定路径本身；上传版本 data_path 指向 data/versions/...
+            is_upload = dv is not None and dv.data_path.replace("\\", "/") != canonical_rel
+            if is_upload:
+                # 上传版本：把所选版本数据软链到固定读取路径；首次覆盖前备份内置原文件，避免丢失
+                src = (settings.workspace_dir / dv.data_path).resolve()
+                if canonical.exists() and not canonical.is_symlink() and not builtin.exists():
+                    canonical.rename(builtin)
+                if canonical.is_symlink() or canonical.exists():
+                    canonical.unlink()
+                canonical.parent.mkdir(parents=True, exist_ok=True)
+                canonical.symlink_to(os.path.relpath(src, canonical.parent))
+                logger.info("custom dataset (upload) symlink: %s -> %s", canonical, src)
+            else:
+                # init/内置版本：确保读到真实内置文件（若之前被上传版本软链过则还原）
+                if canonical.is_symlink():
+                    canonical.unlink()
+                    if builtin.exists():
+                        builtin.rename(canonical)
+                    logger.info("custom dataset restored to builtin: %s", canonical)
+
+            if not canonical.exists():
                 raise RuntimeError(
-                    f"Task {task.key} has no dataset version, please upload data first"
+                    f"custom 任务 {task.key} 缺少数据文件 {canonical}，请确认数据集已放置或已上传版本"
                 )
-            # 如果没有已上传版本且为 generic 任务，则退回使用其内置测试集
-            run_task_type = task.type
-            run_custom_task_num = task.custom_task_num
-            run_suite_name = task.suite_name
 
         env_file = write_env_file(settings, job.id, _env_vars_for_model(model))
         cmd = build_infer_cmd(
@@ -309,13 +334,8 @@ async def _run_eval(db: Session, job: Job, settings):
 
         env_file = write_env_file(settings, job.id, {**_env_vars_for_model(model), **judge_env})
 
-        # 判断此次推理是不是使用了上传的数据集版本
-        if prediction.dataset_version_id is not None:
-            run_task_type = "custom"
-            run_suite_name = f"task_{task.id}_suite"
-        else:
-            run_task_type = task.type
-            run_suite_name = task.suite_name
+        # 评测必须与推理跑同一个固定 suite：custom 按 custom_task_num，generic 按 suite_name。
+        run_task_type, _, run_suite_name = resolve_run_target(task)
 
         cmd = build_eval_cmd(
             settings=settings, job_id=job.id, env_file=env_file,
