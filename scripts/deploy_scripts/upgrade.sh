@@ -79,6 +79,16 @@ DB="$BACKEND_DATA_DIR/eval_backend.db"
      这看起来是【首次部署】而非升级。请改用：bash init_workspace.sh && ${DC[*]} -f $COMPOSE_FILE --env-file .env up -d"
 [ -f "$DB" ] || warn "未发现既有数据库 $DB（升级场景请先确认 .env 路径无误）"
 
+# 数据/版本解耦检查：数据目录不应放在版本(发布)目录内，否则旧版目录删不得、版本与数据耦死
+REL_DIR="$(readlink -f "$HERE" 2>/dev/null || echo "$HERE")"
+for d in "$WORKSPACE_DIR" "$BACKEND_DATA_DIR"; do
+  rd="$(readlink -f "$d" 2>/dev/null || echo "$d")"
+  case "$rd/" in
+    "$REL_DIR"/*)
+      warn "数据目录 $d 位于版本目录 $REL_DIR 内 —— 建议迁到版本无关的固定路径（见手册 §6.1），否则该版本目录将无法清理" ;;
+  esac
+done
+
 # 架构提示（跨架构镜像 load 后会在启动时 exec format error）
 HOST_ARCH="$(uname -m)"
 [ "$HOST_ARCH" = "aarch64" ] || [ "$HOST_ARCH" = "arm64" ] || \

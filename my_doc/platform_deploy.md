@@ -157,6 +157,36 @@ EVAL_BACKEND_ADMIN_PASSWORD=change_me_please
 
 > **被测/打分模型不在这里配**。它们的 IP、端口、API Key、并发，**部署后在 Web 界面录入**（见 §9）。`.env` 里若残留 `MAAS_/LOCAL_/SCORE_` 字段，那是裸跑 ais_bench 用的，对平台无效。
 
+### 6.1 数据与版本解耦（强烈推荐的目录约定）
+
+**铁律：数据目录和 `.env` 放在「与版本无关的固定路径」，版本目录只放可丢弃的发布物。**
+否则把 `WORKSPACE_DIR=/opt/score_platform_0617/eval_workspace` 这样写进版本目录里，会导致：旧版目录永远删不掉（活数据在里面）、每次升级都要手改 .env、版本与数据耦死。
+
+推荐布局：
+
+```
+/dpc/hejia/score_data/                 ← ★数据根（版本无关，永不随发布走）
+├── .env                               ★权威配置，只此一份
+├── eval_workspace/                    WORKSPACE_DIR（data/ outputs/ code/）
+├── eval_backend_data/                 BACKEND_DATA_DIR（eval_backend.db ...）
+└── data  ─→ eval_workspace/data       generic 软链（init_workspace 自动建）
+
+/opt/score_platform_0617/             ← 旧版发布目录（镜像包+compose，可留作回滚）
+/opt/score_platform_0622/             ← 新版发布目录（解压即用，可随时删旧版）
+/opt/score_platform_current ─→ 0622   ← 可选：软链指向当前线上版本
+```
+
+`.env` 里数据路径指向数据根，**与发布目录无关**：
+
+```bash
+WORKSPACE_DIR=/dpc/hejia/score_data/eval_workspace
+BACKEND_DATA_DIR=/dpc/hejia/score_data/eval_backend_data
+```
+
+这样每次升级都是**同一套固定动作**（见 §11.2）：解压新版 → `ln -s 数据根/.env .env`（软链共享，不复制、不会指错）→ `bash upgrade.sh`。数据始终在数据根，发布目录随便删留。`upgrade.sh` 已内置护栏：若检测到数据目录落在版本目录内会告警。
+
+> 已经把数据放进了版本目录（如 0617 内）？一次性迁出即可，见 §11.5。
+
 ---
 
 ## 7. 目录结构与数据挂载
@@ -293,22 +323,30 @@ docker-compose -f docker-compose.prod.yml --env-file .env up -d   # 启动
 
 ### 11.2 一键升级（推荐）
 
-打包机（ARM64）重新出包 → 传到私域机 → 解压到**新目录** → 沿用旧 `.env` → 跑 `upgrade.sh`：
+前提：已按 §6.1 把数据和 `.env` 放在版本无关的数据根（如 `/dpc/hejia/score_data`）。
+之后每次升级都是同一套固定动作——**解压新版目录 → 软链共享 `.env` → `upgrade.sh`**：
 
 ```bash
 # 【打包机·ARM64·联网】出新包
 bash scripts/deploy_scripts/prod_all.sh
 scp outputs/score_platform_<新时间戳>.tar.gz user@<910C_IP>:/opt/
 
-# 【私域机·910C】解压到新目录，复用旧 .env
-cd /opt && tar -xzf score_platform_<新时间戳>.tar.gz -C /opt/score_platform_new --strip-components=1 2>/dev/null \
-  || { mkdir -p /opt/score_platform_new && tar -xzf score_platform_<新时间戳>.tar.gz -C /opt/score_platform_new --strip-components=1; }
-cd /opt/score_platform_new
-cp /opt/score_platform/.env ./.env          # 复用线上旧 .env（WORKSPACE_DIR/BACKEND_DATA_DIR 等保持不变）
+# 【私域机·910C】按日期建发布目录，解压
+REL=/opt/score_platform_0622
+mkdir -p "$REL" && tar -xzf /opt/score_platform_<新时间戳>.tar.gz -C "$REL" --strip-components=1
+cd "$REL"
 
-# 一键升级（会先备份数据库，再停旧起新，最后健康检查）
+# 软链共享数据根里的权威 .env（不复制，永远指向同一份、不会指错）
+ln -sf /dpc/hejia/score_data/.env .env
+
+# 一键升级（先备份数据库，再停旧起新，最后健康检查）
 bash upgrade.sh
+
+# 可选：把 current 指向当前线上版本，便于辨认/回滚
+ln -sfn "$REL" /opt/score_platform_current
 ```
+
+数据始终在数据根，旧发布目录（`score_platform_0617`）保留作回滚、确认无误后可删。
 
 `upgrade.sh` 自动完成 6 步：**前置检查 → 备份数据库 → 导入新镜像 → 停旧容器 → 同步 code → 起新容器 → 健康检查**。
 带的安全检查：必备文件/`.env`/docker、磁盘空间、架构提示、**是否有评测算子容器正在运行**（有则提示，避免中断在跑的任务）、备份完整性校验、启动后健康检查失败给出**回滚指引**。
@@ -364,6 +402,35 @@ docker-compose -f docker-compose.prod.yml --env-file .env up -d
 
 > 建议：**每次升级前保留上一版的 `score-platform-images.tar.gz`**（镜像无法从运行中容器反向导出，留包是唯一可靠的镜像回滚手段）；数据库备份在 `BACKEND_DATA_DIR/backups/`，可放心还原。
 
+### 11.5 一次性：把数据迁出版本目录（老部署纠正）
+
+若历史上把数据放进了版本目录（如 `.env` 指向 `/opt/score_platform_0617/eval_workspace`），趁一次升级把它迁到版本无关的数据根，以后即可走 §11.2 的固定流程：
+
+```bash
+# 1. 停旧系统（释放数据库/文件占用）
+cd /opt/score_platform_0617
+docker-compose -f docker-compose.prod.yml --env-file .env down
+
+# 2. 数据搬到版本无关路径
+mkdir -p /dpc/hejia/score_data
+mv /opt/score_platform_0617/eval_workspace    /dpc/hejia/score_data/eval_workspace
+mv /opt/score_platform_0617/eval_backend_data /dpc/hejia/score_data/eval_backend_data
+
+# 3. 在数据根放一份权威 .env（数据路径指向数据根）
+cp /opt/score_platform_0617/.env /dpc/hejia/score_data/.env
+sed -i 's#/opt/score_platform_0617/eval_workspace#/dpc/hejia/score_data/eval_workspace#; \
+        s#/opt/score_platform_0617/eval_backend_data#/dpc/hejia/score_data/eval_backend_data#' \
+        /dpc/hejia/score_data/.env
+
+# 4. 新版目录软链共享 .env 并升级
+REL=/opt/score_platform_0622
+mkdir -p "$REL" && tar -xzf /opt/score_platform_<新时间戳>.tar.gz -C "$REL" --strip-components=1
+cd "$REL" && ln -sf /dpc/hejia/score_data/.env .env
+bash upgrade.sh
+```
+
+迁完后旧目录只剩部署包文件，删留随意；之后所有升级都只需 §11.2 三步。
+
 ---
 
 ## 12. 常见问题排查
@@ -398,11 +465,14 @@ docker-compose -f docker-compose.prod.yml --env-file .env up -d
 # 访问 http://<910C_IP>:8087/chuilei/eval/
 ```
 
-**已上线系统的升级（保留老数据，见 §11）：**
+**已上线系统的升级（保留老数据，数据/版本解耦见 §6.1、§11）：**
 
 ```bash
-# 打包机出新包并传过去后，私域机解压到新目录、复用旧 .env：
-cd /opt/score_platform_new
-cp /opt/score_platform/.env ./.env
-bash upgrade.sh          # 自动：备份库 → 停旧 → 导入新镜像 → 同步 code → 起新 → 健康检查
+# 前提：数据与 .env 已在版本无关的数据根（如 /dpc/hejia/score_data，见 §6.1）
+REL=/opt/score_platform_0622
+mkdir -p "$REL" && tar -xzf /opt/score_platform_<新时间戳>.tar.gz -C "$REL" --strip-components=1
+cd "$REL"
+ln -sf /dpc/hejia/score_data/.env .env     # 软链共享权威 .env，不复制、不指错
+bash upgrade.sh                            # 备份库 → 停旧 → 导入新镜像 → 同步 code → 起新 → 健康检查
+ln -sfn "$REL" /opt/score_platform_current # 可选：标记当前线上版本
 ```
