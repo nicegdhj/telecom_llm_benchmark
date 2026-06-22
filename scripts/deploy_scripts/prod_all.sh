@@ -226,13 +226,13 @@ echo "下一步： docker-compose -f docker-compose.prod.yml --env-file .env up 
 INIT_EOF
 chmod +x "$PKG_DIR/init_workspace.sh"
 
-# 5.5b 在线升级脚本（保留老数据；首次部署用不到，升级时用）
-if [ -f "$SCRIPT_DIR/upgrade.sh" ]; then
-    cp "$SCRIPT_DIR/upgrade.sh" "$PKG_DIR/upgrade.sh"
-    chmod +x "$PKG_DIR/upgrade.sh"
-    echo "  ✅ 已附带在线升级脚本 upgrade.sh"
+# 5.5b 唯一更新脚本 platform_update.sh（升级时用；解压新包→共享.env→备份→停旧起新→健康检查→current）
+if [ -f "$SCRIPT_DIR/platform_update.sh" ]; then
+    cp "$SCRIPT_DIR/platform_update.sh" "$PKG_DIR/platform_update.sh"
+    chmod +x "$PKG_DIR/platform_update.sh"
+    echo "  ✅ 已附带更新脚本 platform_update.sh"
 else
-    echo "  ⚠️  未找到 $SCRIPT_DIR/upgrade.sh，本次包不含升级脚本"
+    echo "  ⚠️  未找到 $SCRIPT_DIR/platform_update.sh，本次包不含更新脚本"
 fi
 
 # 5.6 部署说明
@@ -245,7 +245,7 @@ cat > "$PKG_DIR/README.txt" << 'README_EOF'
   ├── docker-compose.prod.yml        # 生产 Compose（后端端口已收口，仅经 nginx 暴露）
   ├── .env.example                   # 环境变量模板
   ├── init_workspace.sh              # 一键建目录 + 铺 code 业务脚本
-  ├── upgrade.sh                     # 【升级用】在线升级脚本（自动备份库+停旧起新+健康检查）
+  ├── platform_update.sh             # 【升级用】唯一更新脚本（解压新包+共享.env+备份+停旧起新+健康检查+current）
   ├── code/                          # 业务脚本（被后端挂进算子容器，必须完整）
   │   ├── eval_entry.py  eval_judge.py  setup.py
   │   ├── scripts/
@@ -274,10 +274,12 @@ cat > "$PKG_DIR/README.txt" << 'README_EOF'
        docker-compose -f docker-compose.prod.yml logs -f
        docker ps
 
-升级（系统已上线、再次更新且要保留老数据）：
-  - 解压新版包到一个新目录，cp 旧 .env 过来（或重填），在新目录内执行：
-       bash upgrade.sh          # 自动：备份数据库 → 停旧容器 → 导入新镜像 → 同步 code → 起新容器 → 健康检查
-  - 业务数据（eval_backend.db / outputs / data）在宿主机挂载目录，升级不受影响。
+升级（系统已上线、再次更新且要保留老数据；前提：已按手册 §6.1 建立数据/版本解耦布局）：
+  - 把新包放到平台目录 BASE，用常驻 BASE 的更新脚本一条命令搞定：
+       bash $BASE/platform_update.sh --pkg $BASE/score_platform_<新时间戳>.tar.gz
+       # 自动：解压新版目录 → 软链共享数据根 .env → 备份数据库 → 导入新镜像 →
+       #       停旧 → 同步 code → 起新 → 健康检查 → 切换 current 软链
+  - 业务数据（eval_backend.db / outputs / data）在数据根 BASE/score_data，升级不受影响。
 
 要点：
   - benchmark-eval 由后端经 docker.sock 动态 docker run，无需在 compose 声明。

@@ -184,7 +184,7 @@ WORKSPACE_DIR=/opt/eval_platform/score_data/eval_workspace
 BACKEND_DATA_DIR=/opt/eval_platform/score_data/eval_backend_data
 ```
 
-这样每次升级都是**同一套固定动作**（见 §11.2）：解压新版 → `ln -s 数据根/.env .env`（软链共享，不复制、不会指错）→ `bash upgrade.sh`。数据始终在数据根，发布目录随便删留。`upgrade.sh` 已内置护栏：若检测到数据目录落在版本目录内会告警。
+这样每次升级都是**一条命令**（见 §11.2）：`bash $BASE/platform_update.sh --pkg <新包>`——它自动解压新版目录、软链共享数据根 `.env`、备份库、停旧起新、健康检查、切换 `current`。数据始终在数据根，发布目录随便删留。
 
 > 已经把数据放进了版本目录（如 0617 内）？一次性迁出即可，见 §11.5。
 
@@ -205,7 +205,7 @@ BACKEND_DATA_DIR=/opt/eval_platform/score_data/eval_backend_data
 
 /opt/eval_platform/score_data/eval_backend_data/ ← BACKEND_DATA_DIR
 ├── eval_backend.db               ★SQLite，全部平台状态，备份就备它
-├── backups/                      upgrade.sh 升级前自动备份的历史库
+├── backups/                      platform_update.sh 升级前自动备份的历史库
 ├── envs/                         worker 为每个 job 动态生成的 .env
 └── logs/
 
@@ -296,7 +296,7 @@ cp /opt/eval_platform/score_data/eval_backend_data/eval_backend.db \
    /opt/backup/eval_backend_$(date +%F).db
 ```
 
-**升级平台（系统已上线、要保留老数据）**：见 **§11 迭代更新**，用随包附带的 `upgrade.sh` 一键完成（自动备份数据库 + 停旧起新 + 健康检查）。
+**升级平台（系统已上线、要保留老数据）**：见 **§11 迭代更新**，用 `platform_update.sh --pkg <新包>` 一键完成（自动备份数据库 + 停旧起新 + 健康检查 + 切 current）。
 
 **停止 / 启动：**
 ```bash
@@ -322,72 +322,64 @@ docker-compose -f docker-compose.prod.yml --env-file .env up -d   # 启动
 
 - `docker-compose down` **不带 `-v`** 只删容器和网络，**绝不动 bind 挂载目录**。
 - 后端新版本启动时会**自动迁移数据库 schema**（幂等的 `run_migrations` + `ALTER TABLE`），并幂等补种任务/init 版本，老数据保留、不重复。
-- 即便如此，`upgrade.sh` 升级前仍会**自动备份 `eval_backend.db`** 并做完整性校验，最坏情况可一键还原。
+- 即便如此，`platform_update.sh` 升级前仍会**自动备份 `eval_backend.db`** 并做完整性校验，最坏情况可一键还原。
 
-### 11.2 一键升级（推荐）
+### 11.2 一键升级（唯一更新脚本 `platform_update.sh`）
 
-前提：已按 §6.1 把数据和 `.env` 放在版本无关的数据根（`/opt/eval_platform/score_data`）。
-之后每次升级都是同一套固定动作——**解压新版目录 → 软链共享 `.env` → `upgrade.sh`**：
+前提：已按 §6.1 建立数据/版本解耦布局（数据根 `/opt/eval_platform/score_data`，权威 `.env` 在其中）。
+`platform_update.sh` 常驻平台目录 `BASE`（首次从任意新包里取一份放到 `BASE` 即可，之后它会自更新）。
+**日常更新就一条命令**——把新包放到 `BASE`，指给脚本：
 
 ```bash
-# 【打包机·ARM64·联网】出新包
+# 【打包机·ARM64·联网】出新包并传到平台目录
 bash scripts/deploy_scripts/prod_all.sh
 scp outputs/score_platform_<新时间戳>.tar.gz user@<910C_IP>:/opt/eval_platform/
 
-# 【私域机·910C】按日期建发布目录，解压
-REL=/opt/eval_platform/score_platform_0622
-mkdir -p "$REL" && tar -xzf /opt/eval_platform/score_platform_<新时间戳>.tar.gz -C "$REL" --strip-components=1
+# 【私域机·910C】一条命令完成升级
+bash /opt/eval_platform/platform_update.sh \
+     --pkg /opt/eval_platform/score_platform_<新时间戳>.tar.gz
+```
+
+它自动完成 7 步：**前置检查 → 解压新版目录 + 软链共享 `.env` → 备份数据库 → 导入新镜像 → 停旧 + 同步 code + 起新 → 健康检查 → 切换 `current` 软链**。
+内置安全检查：docker/磁盘/架构、数据根与 `.env` 存在性、**是否有评测在跑**（提示）、备份完整性校验、健康检查失败则**不切 current 并给回滚指引**。数据全程在数据根、不动；旧版本目录保留作回滚、确认无误后可删。
+
+常用选项：
+
+```bash
+--pkg <tar.gz>          必填：新版离线包
+--name score_platform_0630   版本目录名（默认取包名去掉 .tar.gz）
+--base <目录>           平台目录（默认脚本所在目录）
+-y                      跳过确认（自动化）
+-h                      查看用法
+```
+
+> ⚠️ 升级前最好确认**没有正在跑的评测**（脚本会检测并提示）。停容器会中断后端 Worker，正在执行的算子容器会变孤儿、对应任务需重跑——但**已落库的历史结果不受影响**。
+
+### 11.3 手动升级（等价步骤，便于理解 / 应急）
+
+```bash
+BASE=/opt/eval_platform
+REL=$BASE/score_platform_0630
+set -a; . "$BASE/score_data/.env"; set +a     # 取数据路径
+
+# 1. 解压新包 + 软链共享 .env
+mkdir -p "$REL" && tar -xzf "$BASE/score_platform_<新时间戳>.tar.gz" -C "$REL" --strip-components=1
+ln -sf "$BASE/score_data/.env" "$REL/.env"
+
+# 2. 备份数据库（关键！）
+mkdir -p "$BACKEND_DATA_DIR/backups"
+cp -p "$BACKEND_DATA_DIR/eval_backend.db" "$BACKEND_DATA_DIR/backups/eval_backend_$(date +%F_%H%M%S).db"
+
+# 3. 导入新镜像 → 停旧 → 同步 code → 起新
 cd "$REL"
-
-# 软链共享数据根里的权威 .env（不复制，永远指向同一份、不会指错）
-ln -sf /opt/eval_platform/score_data/.env .env
-
-# 一键升级（先备份数据库，再停旧起新，最后健康检查）
-bash upgrade.sh
-
-# 可选：把 current 指向当前线上版本，便于辨认/回滚
-ln -sfn "$REL" /opt/eval_platform/score_platform_current
-```
-
-数据始终在数据根，旧发布目录（`score_platform_0617`）保留作回滚、确认无误后可删。
-
-`upgrade.sh` 自动完成 6 步：**前置检查 → 备份数据库 → 导入新镜像 → 停旧容器 → 同步 code → 起新容器 → 健康检查**。
-带的安全检查：必备文件/`.env`/docker、磁盘空间、架构提示、**是否有评测算子容器正在运行**（有则提示，避免中断在跑的任务）、备份完整性校验、启动后健康检查失败给出**回滚指引**。
-
-常用参数：
-
-```bash
-bash upgrade.sh           # 交互确认（默认）
-bash upgrade.sh -y        # 跳过确认，适合自动化
-bash upgrade.sh -h        # 查看说明
-```
-
-> ⚠️ 升级前最好确认**没有正在跑的评测**（`upgrade.sh` 会检测并提示）。停容器会中断后端 Worker，正在执行的算子容器会变孤儿，对应任务需重跑——但**已落库的历史结果不受影响**。
-
-### 11.3 手动升级（等价步骤，便于理解）
-
-```bash
-cd /opt/score_platform_new            # 新版包目录，已复用旧 .env
-set -a; . ./.env; set +a
-
-# 1. 备份数据库（关键！）
-cp "$BACKEND_DATA_DIR/eval_backend.db" "$BACKEND_DATA_DIR/eval_backend_$(date +%F_%H%M%S).db"
-
-# 2. 导入新镜像（覆盖同名 :latest）
 docker load < score-platform-images.tar.gz
-
-# 3. 停旧容器（不带 -v，数据安全）
 docker-compose -f docker-compose.prod.yml --env-file .env down
-
-# 4. 同步业务脚本到 WORKSPACE_DIR/code
 bash init_workspace.sh
-
-# 5. 起新容器
 docker-compose -f docker-compose.prod.yml --env-file .env up -d
 
-# 6. 验证
+# 4. 验证 + 切换 current
 curl -fsS http://localhost:${FRONT_PORT:-8087}/chuilei/eval/api/v1/health   # 期望 {"status":"ok"}
-docker-compose -f docker-compose.prod.yml ps
+ln -sfn "$REL" "$BASE/score_platform_current"
 ```
 
 ### 11.4 回滚
@@ -425,12 +417,13 @@ sed -i 's#.*WORKSPACE_DIR=.*#WORKSPACE_DIR=/opt/eval_platform/score_data/eval_wo
         s#.*BACKEND_DATA_DIR=.*#BACKEND_DATA_DIR=/opt/eval_platform/score_data/eval_backend_data#' \
         /opt/eval_platform/score_data/.env
 
-# 4. 新版目录软链共享 .env 并升级
-REL=/opt/eval_platform/score_platform_0622
-mkdir -p "$REL" && tar -xzf /opt/eval_platform/score_platform_<新时间戳>.tar.gz -C "$REL" --strip-components=1
-cd "$REL" && ln -sf /opt/eval_platform/score_data/.env .env
-bash upgrade.sh
+# 4. 取出更新脚本并一键升级（数据根与 .env 已就绪）
+tmp=$(mktemp -d) && tar -xzf /opt/eval_platform/score_platform_<新时间戳>.tar.gz -C "$tmp" --strip-components=1
+cp "$tmp/platform_update.sh" /opt/eval_platform/platform_update.sh && rm -rf "$tmp"
+bash /opt/eval_platform/platform_update.sh --pkg /opt/eval_platform/score_platform_<新时间戳>.tar.gz -y
 ```
+
+> 上述一次性迁移也可直接用脚本 `scripts/deploy_scripts/migrate_0617_to_decoupled.sh`（改好顶部变量后一把跑完）。
 
 迁完后旧目录只剩部署包文件，删留随意；之后所有升级都只需 §11.2 三步。
 
@@ -468,14 +461,11 @@ docker-compose -f docker-compose.prod.yml --env-file .env up -d
 # 访问 http://<910C_IP>:8087/chuilei/eval/
 ```
 
-**已上线系统的升级（保留老数据，数据/版本解耦见 §6.1、§11）：**
+**已上线系统的升级（保留老数据，数据/版本解耦见 §6.1、§11）：一条命令**
 
 ```bash
-# 前提：数据与 .env 已在版本无关的数据根 /opt/eval_platform/score_data（见 §6.1）
-REL=/opt/eval_platform/score_platform_0622
-mkdir -p "$REL" && tar -xzf /opt/eval_platform/score_platform_<新时间戳>.tar.gz -C "$REL" --strip-components=1
-cd "$REL"
-ln -sf /opt/eval_platform/score_data/.env .env       # 软链共享权威 .env，不复制、不指错
-bash upgrade.sh                                       # 备份库→停旧→导入新镜像→同步 code→起新→健康检查
-ln -sfn "$REL" /opt/eval_platform/score_platform_current   # 可选：标记当前线上版本
+# 前提：数据与 .env 已在数据根 /opt/eval_platform/score_data，platform_update.sh 常驻 BASE（见 §6.1、§11.2）
+scp outputs/score_platform_<新时间戳>.tar.gz user@<910C>:/opt/eval_platform/
+bash /opt/eval_platform/platform_update.sh --pkg /opt/eval_platform/score_platform_<新时间戳>.tar.gz
+# 自动：解压→软链共享 .env→备份库→导入新镜像→停旧起新→健康检查→切换 current
 ```

@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # ==============================================================================
 # 一次性迁移：把「数据耦在版本目录内」的旧部署(0617) 迁到「数据/版本解耦」布局，
-# 并升级到新版(0622)。数据零丢失（mv 同盘 + upgrade.sh 升级前自动备份数据库）。
+# 并升级到新版(0622)。数据零丢失（mv 同盘 + 升级前自动备份数据库）。
+# 注：本脚本是一次性迁移；日常更新统一用 platform_update.sh。
 #
 # 迁移后布局：
 #   /dpc/hejia/eval_platform/
@@ -18,7 +19,7 @@ OLD_DIR=/dpc/hejia/score_platform_0617                        # 旧发布目录(
 BASE=/dpc/hejia/eval_platform                                 # 新平台总目录
 NEW_REL="$BASE/score_platform_0622"                           # 新版发布目录
 PKG=/dpc/hejia/score_platform_20260622_105800.tar.gz         # 新版离线包路径（按实际位置改）
-CUSTOM_SRC=""   # 可选：原始 custom 数据目录(其下有 custom_task/)，用于修复旧 bug 写坏的软链；留空则跳过
+CUSTOM_SRC="/dpc/hejia/newpt0527/eval_workspace_new/data"   # 可选：原始 custom 数据目录(其下有 custom_task/)，用于修复旧 bug 写坏的软链；留空则跳过
 # =========================================================================
 
 DATA_ROOT="$BASE/score_data"
@@ -75,13 +76,24 @@ ok "权威 .env 就绪"
 log "[5/7] 解压新版 → $NEW_REL"
 mkdir -p "$NEW_REL"
 tar -xzf "$PKG" -C "$NEW_REL" --strip-components=1
-[ -f "$NEW_REL/upgrade.sh" ] || die "新包内无 upgrade.sh（包太旧？请用最新 prod_all.sh 出包）"
+[ -f "$NEW_REL/init_workspace.sh" ] || die "新包不完整（缺 init_workspace.sh）"
 ln -sf "$ENVF" "$NEW_REL/.env"
+# 把日常更新脚本放到 BASE，便于以后 BASE/platform_update.sh 一键更新
+[ -f "$NEW_REL/platform_update.sh" ] && cp -f "$NEW_REL/platform_update.sh" "$BASE/platform_update.sh" 2>/dev/null || true
 ok "解压完成，.env 已软链共享数据根"
 
-# ---- 6. 升级（备份库 → 导入镜像 → 停旧 → 同步 code → 起新 → 健康检查）----
-log "[6/7] 执行升级"
-( cd "$NEW_REL" && bash upgrade.sh -y )
+# ---- 6. 升级：备份库 → 导入镜像 → 停旧 → 同步 code → 起新 ----
+log "[6/7] 升级"
+if [ -f "$BD/eval_backend.db" ]; then
+  mkdir -p "$BD/backups"
+  cp -p "$BD/eval_backend.db" "$BD/backups/eval_backend_$(date +%Y%m%d_%H%M%S).db" && ok "数据库已备份"
+fi
+( cd "$NEW_REL"
+  docker load < score-platform-images.tar.gz
+  $DC -f docker-compose.prod.yml --env-file .env down || true
+  bash init_workspace.sh
+  $DC -f docker-compose.prod.yml --env-file .env up -d )
+ok "新版已启动"
 
 # ---- 7. 修复旧 bug 写坏的 custom 数据软链 + current 软链 ----
 log "[7/7] 收尾"
