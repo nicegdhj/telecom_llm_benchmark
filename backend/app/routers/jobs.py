@@ -3,11 +3,33 @@ from sqlalchemy.orm import Session
 
 from backend.app.config import get_settings
 from backend.app.deps import db_session, require_role
-from backend.app.models import Evaluation, Job, Prediction, User
-from backend.app.schemas import JobOut
+from backend.app.models import BatchCell, Evaluation, Job, Prediction, User
+from backend.app.schemas import JobOut, JobQualityOut
+from backend.app.services.framework_log import eval_log_files, infer_log_files
+from backend.app.services.quality import compute_eval_quality
 
 
 router = APIRouter(prefix="/api/v1/jobs", tags=["jobs"])
+
+
+def _resolve_eval_prediction(db: Session, job: Job) -> Prediction | None:
+    """按 worker._run_eval 同样的优先级定位 eval job 评的那条 prediction。
+
+    用于运行中（produces_evaluation_id 尚未写库）也能定位框架日志目录。
+    """
+    params = job.params_json or {}
+    sid = params.get("source_prediction_id")
+    if sid:
+        return db.get(Prediction, sid)
+    if job.dependency_job_id:
+        dep = db.get(Job, job.dependency_job_id)
+        if dep and dep.produces_prediction_id:
+            return db.get(Prediction, dep.produces_prediction_id)
+    if job.batch_id:
+        cell = db.get(BatchCell, (job.batch_id, job.model_id, job.task_id))
+        if cell and cell.current_prediction_id:
+            return db.get(Prediction, cell.current_prediction_id)
+    return None
 
 
 def _collect_framework_log(db: Session, job: Job) -> str | None:
@@ -15,9 +37,12 @@ def _collect_framework_log(db: Session, job: Job) -> str | None:
 
     - infer job → prediction.output_task_id → outputs/<otid>/details/**/logs/infer/**/*.out
     - eval  job → prediction.output_task_id + eval_version → outputs/<otid>/<ver>/logs/**/*.out
+    eval 运行中 produces_evaluation_id 尚未写库，回退到与 worker 一致的 prediction
+    定位方式 + params_json.eval_version，保证"测评任务进行时"也能看到框架日志。
     定位不到（如尚未产出 / failed）时返回 None。
     """
-    outputs = get_settings().workspace_dir / "outputs"
+    ws = get_settings().workspace_dir
+    outputs = ws / "outputs"
     files: list = []
 
     if job.type == "infer":
@@ -28,20 +53,21 @@ def _collect_framework_log(db: Session, job: Job) -> str | None:
         if not otid:
             otid = (job.params_json or {}).get("output_task_id")
         if otid:
-            base = outputs / otid / "details"
-            files = sorted(base.glob("**/logs/infer/**/*.out")) + \
-                sorted(base.glob("**/logs/infer/**/*.log"))
+            files = infer_log_files(ws, otid)
     else:  # eval
         otid, ver = None, None
-        if job.produces_evaluation_id:
+        if job.produces_evaluation_id:  # 已完成：直接读评测记录
             e = db.get(Evaluation, job.produces_evaluation_id)
             if e:
                 ver = e.eval_version
                 p = db.get(Prediction, e.prediction_id) if e.prediction_id else None
                 otid = p.output_task_id if p else None
+        if not (otid and ver):  # 运行中 / 未写库：回退解析
+            ver = ver or (job.params_json or {}).get("eval_version", "eval_init")
+            p = _resolve_eval_prediction(db, job)
+            otid = otid or (p.output_task_id if p else None)
         if otid and ver:
-            base = outputs / otid / ver / "logs"
-            files = sorted(base.glob("**/*.out")) + sorted(base.glob("**/*.log"))
+            files = eval_log_files(ws, otid, ver)
 
     if not files:
         return None
@@ -106,6 +132,23 @@ def get_framework_log(jid: int,
     if content is None:
         return {"log": "", "available": False}
     return {"log": content, "available": True}
+
+
+@router.get("/{jid}/quality", response_model=JobQualityOut)
+def get_quality(jid: int,
+                db: Session = Depends(db_session),
+                _: User = Depends(require_role("viewer", "operator", "admin"))):
+    """执行质量：该 eval 任务每条样本中"好"的占比（非空输出且解析成功）。"""
+    j = db.get(Job, jid)
+    if not j:
+        raise HTTPException(status_code=404, detail=f"Job {jid} not found")
+    if j.type != "eval" or not j.produces_evaluation_id:
+        return JobQualityOut(available=False)
+    ev = db.get(Evaluation, j.produces_evaluation_id)
+    stats = compute_eval_quality(ev.details_path if ev else None, sample_limit=10)
+    if stats is None:
+        return JobQualityOut(available=False)
+    return JobQualityOut(available=True, **stats)
 
 
 @router.post("/{jid}/cancel")

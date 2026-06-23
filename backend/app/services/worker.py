@@ -15,6 +15,9 @@ from backend.app.services.batch_service import record_revision
 from backend.app.services.docker_runner import (
     build_eval_cmd, build_infer_cmd, write_env_file,
 )
+from backend.app.services.framework_log import (
+    detect_framework_error, eval_log_files, infer_log_files,
+)
 from backend.app.services.scan import scan_eval_output, scan_infer_output
 
 logger = logging.getLogger(__name__)
@@ -227,7 +230,12 @@ async def _run_infer(db: Session, job: Job, settings):
         job.returncode = returncode
         job.finished_at = datetime.utcnow()
 
-        if returncode == 0:
+        # 框架可能内部捕获异常仍 exit 0，需扫描框架日志兜底判失败
+        fw_err = (detect_framework_error(
+            infer_log_files(settings.workspace_dir, output_task_id))
+            if returncode == 0 else None)
+
+        if returncode == 0 and not fw_err:
             info = scan_infer_output(settings, output_task_id, run_suite_name)
             label = _next_version_label(db, "infer", job.batch_id, job.model_id, job.task_id)
             pred = Prediction(
@@ -257,6 +265,8 @@ async def _run_infer(db: Session, job: Job, settings):
                     )
         else:
             job.status = "failed"
+            if fw_err:
+                job.error_msg = f"框架执行报错：{fw_err}"
         db.commit()
 
     except Exception as e:
@@ -324,11 +334,15 @@ async def _run_eval(db: Session, job: Job, settings):
         task = db.get(Task, job.task_id)
         eval_version = job.params_json.get("eval_version", "eval_init")
 
-        # 合并 judge 的 SCORE_* 环境变量
+        # 合并 judge 的 SCORE_* 环境变量。
+        # 优先用 job 参数里显式指定的 judge_id（重跑"仅评分"可换评分模型），否则用批次默认。
         judge_env: dict[str, str] = {}
-        batch = db.get(Batch, job.batch_id) if job.batch_id else None
-        if batch and batch.default_judge_id:
-            judge = db.get(JudgeLLM, batch.default_judge_id)
+        judge_id = (job.params_json or {}).get("judge_id")
+        if not judge_id and job.batch_id:
+            batch = db.get(Batch, job.batch_id)
+            judge_id = batch.default_judge_id if batch else None
+        if judge_id:
+            judge = db.get(JudgeLLM, judge_id)
             if judge:
                 judge_env = _env_vars_for_judge(judge)
 
@@ -361,7 +375,12 @@ async def _run_eval(db: Session, job: Job, settings):
         job.returncode = returncode
         job.finished_at = datetime.utcnow()
 
-        if returncode == 0:
+        # 框架可能内部捕获异常仍 exit 0，需扫描框架日志兜底判失败
+        fw_err = (detect_framework_error(eval_log_files(
+            settings.workspace_dir, prediction.output_task_id, eval_version))
+            if returncode == 0 else None)
+
+        if returncode == 0 and not fw_err:
             info = scan_eval_output(settings, prediction.output_task_id, eval_version,
                                    run_suite_name)
             label = _next_version_label(db, "score", job.batch_id, job.model_id, job.task_id)
@@ -390,6 +409,8 @@ async def _run_eval(db: Session, job: Job, settings):
                     )
         else:
             job.status = "failed"
+            if fw_err:
+                job.error_msg = f"框架执行报错：{fw_err}"
         db.commit()
 
     except Exception as e:

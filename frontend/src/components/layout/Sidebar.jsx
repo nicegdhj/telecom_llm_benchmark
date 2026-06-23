@@ -1,7 +1,7 @@
 import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard, Cpu, Gavel, ListChecks, FolderKanban,
-  Activity, Settings, Users, LogOut, BarChart3
+  Activity, Settings, Users, LogOut, BarChart3, BookOpen
 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import { api } from '../../lib/api';
@@ -76,8 +76,12 @@ export function Sidebar() {
       {/* Bottom */}
       <div className="px-2.5 pb-4 mt-2">
         <div className="mx-1 mb-3" style={{ height: 1, background: '#eef1f6' }} />
+        <NavLink to="/guide" className={navLinkClass} style={navLinkStyle}>
+          <BookOpen size={15} />
+          使用手册
+        </NavLink>
         {user && (
-          <div className="px-3 mb-2">
+          <div className="px-3 mt-2 mb-2">
             <p className="text-[12px] font-semibold truncate" style={{ color: '#0f1a2e' }}>{userDisplay(user)}</p>
             <p className="text-[11px]" style={{ color: '#8fa3bc' }}>
               {user.role === 'admin' ? '管理员' : user.role === 'operator' ? '操作员' : '访客'}

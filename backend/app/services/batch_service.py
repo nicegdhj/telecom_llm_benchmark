@@ -1,7 +1,7 @@
 from sqlalchemy.orm import Session
 
 from backend.app.models import (
-    Batch, BatchCell, BatchRevision, Evaluation, Job, Model, Prediction, Task,
+    Batch, BatchCell, BatchRevision, Evaluation, Job, JudgeLLM, Model, Prediction, Task,
 )
 
 
@@ -304,11 +304,13 @@ def switch_cell_pointer(db: Session, batch_id: int, model_id: int, task_id: int,
 
 def rerun_cell(db: Session, batch_id: int, model_id: int, task_id: int,
                what: str, source_prediction_id: int | None,
+               judge_id: int | None = None,
                actor_user_id: int | None = None) -> list[Job]:
     """单 cell 重跑。
 
     - what="infer"|"both"：source_prediction_id 必须为空，新建 infer (+eval 依赖)
     - what="eval"：source_prediction_id 必填且属于该 cell 且 status=success
+    - judge_id：重跑含评分时可指定评分模型，留空沿用批次默认
     """
     if what not in ("infer", "eval", "both"):
         raise ValueError("what must be infer|eval|both")
@@ -331,6 +333,9 @@ def rerun_cell(db: Session, batch_id: int, model_id: int, task_id: int,
         if source_prediction_id is not None:
             raise ValueError("非 eval-only 模式不需要 source_prediction_id")
 
+    if judge_id is not None and db.get(JudgeLLM, judge_id) is None:
+        raise ValueError("指定的评分模型不存在")
+
     jobs_created: list[Job] = []
     infer_job = None
     if what in ("infer", "both"):
@@ -352,6 +357,8 @@ def rerun_cell(db: Session, batch_id: int, model_id: int, task_id: int,
         params = {"eval_version": eval_version}
         if what == "eval":
             params["source_prediction_id"] = source_prediction_id
+        if judge_id is not None:
+            params["judge_id"] = judge_id
         dep_id = infer_job.id if infer_job else None
         eval_job = Job(
             type="eval", batch_id=batch_id,

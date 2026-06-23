@@ -82,14 +82,15 @@ export function EvaluationPicker({ selectedIds = [], onChange }) {
 
   return (
     <div className="space-y-3">
-      <div className="grid grid-cols-3 gap-3">
-        <FilterMultiSelect label="模型" options={models.map((m) => ({ id: m.id, label: m.name }))}
-                            value={filter.model_ids} onChange={(v) => setFilter({ ...filter, model_ids: v })} />
-        <FilterMultiSelect label="任务" options={tasks.map((t) => ({ id: t.id, label: t.key }))}
-                            value={filter.task_ids} onChange={(v) => setFilter({ ...filter, task_ids: v })} />
-        <FilterMultiSelect label="批次" options={batches.map((b) => ({ id: b.id, label: b.name }))}
-                            value={filter.batch_ids} onChange={(v) => setFilter({ ...filter, batch_ids: v })} />
-      </div>
+      <CombinedFilter
+        groups={[
+          { key: 'model_ids', label: '模型', options: models.map((m) => ({ id: m.id, label: m.name })) },
+          { key: 'task_ids', label: '任务', options: tasks.map((t) => ({ id: t.id, label: t.key })) },
+          { key: 'batch_ids', label: '批次', options: batches.map((b) => ({ id: b.id, label: b.name })) },
+        ]}
+        value={filter}
+        onApply={setFilter}
+      />
 
       <div className="border border-gray-200 rounded-lg overflow-hidden">
         <div className="bg-gray-50 px-3 py-2 text-xs text-gray-500 flex items-center justify-between">
@@ -147,38 +148,76 @@ export function EvaluationPicker({ selectedIds = [], onChange }) {
 }
 
 
-function FilterMultiSelect({ label, options, value, onChange }) {
+/**
+ * 合并筛选：模型 / 任务 / 批次 三列同屏点选，默认"全部"，点一次「确认」统一应用。
+ * value/onApply 使用 { model_ids, task_ids, batch_ids } 形状。
+ */
+function CombinedFilter({ groups, value, onApply }) {
   const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState(value);
+
+  function openPanel() {
+    setDraft(value);   // 每次打开同步当前已应用的筛选
+    setOpen(true);
+  }
+  function toggle(key, id) {
+    setDraft((d) => {
+      const cur = d[key] || [];
+      const next = cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id];
+      return { ...d, [key]: next };
+    });
+  }
+  const selectAll = (key) => setDraft((d) => ({ ...d, [key]: [] })); // 空 = 全部
+  const reset = () => setDraft({ model_ids: [], task_ids: [], batch_ids: [] });
+  function confirm() {
+    onApply(draft);
+    setOpen(false);
+  }
+
+  const summary = groups
+    .map((g) => `${g.label} ${(value[g.key]?.length || 0) === 0 ? '全部' : value[g.key].length}`)
+    .join(' · ');
+
   return (
-    <div className="relative">
-      <label className="label">{label}</label>
+    <div>
       <button
         type="button"
-        onClick={() => setOpen((v) => !v)}
-        className="input text-left text-sm w-full"
+        onClick={() => (open ? setOpen(false) : openPanel())}
+        className="input text-left text-sm w-full flex items-center justify-between"
       >
-        {value.length === 0 ? '全部' : `已选 ${value.length} 项`}
+        <span className="text-gray-700">{summary}</span>
+        <span className="text-gray-400 text-xs">{open ? '收起' : '筛选'}</span>
       </button>
+
       {open && (
-        <div className="absolute z-20 mt-1 max-h-56 overflow-y-auto bg-white border border-gray-200 rounded-lg shadow w-full">
-          {options.length === 0 && <div className="text-xs text-gray-400 px-3 py-2">无可选项</div>}
-          {options.map((opt) => (
-            <label key={opt.id} className="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-50 text-sm cursor-pointer">
-              <input
-                type="checkbox"
-                checked={value.includes(opt.id)}
-                onChange={() => {
-                  const next = value.includes(opt.id)
-                    ? value.filter((x) => x !== opt.id)
-                    : [...value, opt.id];
-                  onChange(next);
-                }}
-              />
-              {opt.label}
-            </label>
-          ))}
-          <div className="border-t border-gray-100 px-3 py-1 text-right">
-            <button onClick={() => setOpen(false)} className="text-xs text-primary-600 hover:underline">关闭</button>
+        <div className="mt-2 border border-gray-200 rounded-lg bg-white shadow-sm">
+          <div className="grid grid-cols-3 divide-x divide-gray-100">
+            {groups.map((g) => {
+              const sel = draft[g.key] || [];
+              const isAll = sel.length === 0;
+              return (
+                <div key={g.key} className="flex flex-col min-h-0">
+                  <div className="px-3 py-2 text-xs font-semibold text-gray-500 border-b border-gray-100">{g.label}</div>
+                  <div className="max-h-56 overflow-y-auto py-1">
+                    <label className="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-50 text-sm cursor-pointer">
+                      <input type="checkbox" checked={isAll} onChange={() => selectAll(g.key)} />
+                      <span className={isAll ? 'text-primary-600 font-medium' : 'text-gray-600'}>全部</span>
+                    </label>
+                    {g.options.length === 0 && <div className="text-xs text-gray-400 px-3 py-2">无可选项</div>}
+                    {g.options.map((opt) => (
+                      <label key={opt.id} className="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-50 text-sm cursor-pointer">
+                        <input type="checkbox" checked={sel.includes(opt.id)} onChange={() => toggle(g.key, opt.id)} />
+                        <span className="text-gray-700 truncate">{opt.label}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <div className="flex items-center justify-end gap-2 px-3 py-2 border-t border-gray-100 bg-gray-50">
+            <button onClick={reset} className="text-xs text-gray-500 hover:text-gray-700">重置</button>
+            <button onClick={confirm} className="btn-primary text-xs px-4 py-1.5">确认</button>
           </div>
         </div>
       )}

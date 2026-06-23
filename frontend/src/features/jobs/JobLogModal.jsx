@@ -40,7 +40,7 @@ export function JobLogModal({ job, open, onClose }) {
   }, [open, jobId]);
 
   const active = tab === 'exec' ? exec : framework;
-  useInterval(() => { if (open && autoRefresh) active.refetch(); }, 60000);
+  useInterval(() => { if (open && autoRefresh) active.refetch(); }, 5000);
 
   const logContent = active.data?.log ?? '';
   const noFramework = tab === 'framework' && active.data && active.data.available === false;
@@ -72,7 +72,7 @@ export function JobLogModal({ job, open, onClose }) {
         <div className="flex items-center justify-between">
           <label className="flex items-center gap-2 text-sm text-gray-500 cursor-pointer">
             <input type="checkbox" checked={autoRefresh} onChange={(e) => setAutoRefresh(e.target.checked)} />
-            自动刷新 (60s)
+            自动刷新 (5s)
           </label>
           <div className="flex items-center gap-3">
             <button

@@ -5,7 +5,8 @@ import { Card, CardBody } from '../../../components/ui/Card';
 import { StatusBadge } from '../../../components/ui/StatusBadge';
 import { JobLogModal } from '../../jobs/JobLogModal';
 import { CellRerunModal } from './CellRerunModal';
-import { FileText, RotateCcw, GitMerge } from 'lucide-react';
+import { CellResultPanel } from './CellResultPanel';
+import { FileText, RotateCcw, GitMerge, BarChart3 } from 'lucide-react';
 
 /**
  * 单 cell 详情面板：展示历史时间线 + 三要素 + 切版本 + 单元重跑入口。
@@ -15,6 +16,7 @@ export function CellDetailPanel({ batchId, modelId, taskId, modelName, taskKey }
   const qc = useQueryClient();
   const [logJob, setLogJob] = useState(null);
   const [rerunOpen, setRerunOpen] = useState(false);
+  const [resultJobId, setResultJobId] = useState(null);
 
   const { data: detail, isLoading } = useQuery({
     queryKey: ['cell', batchId, modelId, taskId],
@@ -143,6 +145,18 @@ export function CellDetailPanel({ batchId, modelId, taskId, modelName, taskKey }
                         切到此版本
                       </button>
                     )}
+                    {h.kind === 'eval' && h.status === 'success' && h.evaluation_id && (
+                      <button
+                        className={`text-xs flex items-center gap-1 ${
+                          resultJobId === h.job_id
+                            ? 'text-primary-600 font-medium'
+                            : 'text-gray-500 hover:text-gray-700'
+                        }`}
+                        onClick={() => setResultJobId(resultJobId === h.job_id ? null : h.job_id)}
+                      >
+                        <BarChart3 size={12} /> 结果展示
+                      </button>
+                    )}
                     <button
                       className="text-xs text-gray-500 hover:text-gray-700 flex items-center gap-1"
                       onClick={() => setLogJob({ id: h.job_id, batch_id: batchId })}
@@ -157,6 +171,10 @@ export function CellDetailPanel({ batchId, modelId, taskId, modelName, taskKey }
           </div>
           {switchMut.isError && (
             <p className="text-sm text-red-600 mt-2">{switchMut.error.message}</p>
+          )}
+
+          {resultJobId && (
+            <CellResultPanel jobId={resultJobId} onClose={() => setResultJobId(null)} />
           )}
         </div>
       </CardBody>

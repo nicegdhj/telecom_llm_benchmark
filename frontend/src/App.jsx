@@ -13,6 +13,7 @@ import { JobsPage } from './features/jobs/JobsPage';
 import { AnalyticsPage } from './features/analytics/AnalyticsPage';
 import { UsersPage } from './features/users/UsersPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { GuidePage } from './pages/GuidePage';
 import { NotFoundPage } from './pages/NotFoundPage';
 
 const router = createBrowserRouter([
@@ -45,6 +46,7 @@ const router = createBrowserRouter([
         ),
       },
       { path: 'settings', element: <SettingsPage /> },
+      { path: 'guide', element: <GuidePage /> },
       { path: '*', element: <NotFoundPage /> },
     ],
   },

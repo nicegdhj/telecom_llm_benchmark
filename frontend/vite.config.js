@@ -10,6 +10,8 @@ export default defineConfig({
   plugins: [react()],
   server: {
     port: 5173,
+    // 允许从 frontend 之外引用仓库内文档（如 ../my_doc/*.md?raw 用户手册）
+    fs: { allow: ['..'] },
     proxy: {
       [`${BASE}api/v1`]: {
         target: 'http://localhost:8080',

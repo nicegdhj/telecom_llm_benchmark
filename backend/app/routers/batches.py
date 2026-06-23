@@ -334,6 +334,7 @@ def cell_rerun(bid: int, mid: int, tid: int,
             db, bid, mid, tid,
             what=payload.what,
             source_prediction_id=payload.source_prediction_id,
+            judge_id=payload.judge_id,
             actor_user_id=actor.id,
         )
     except ValueError as e:

@@ -225,6 +225,26 @@ class PredictionOut(BaseModel):
     error_msg: str | None
 
 
+class QualitySample(BaseModel):
+    kind: str  # good | empty_output | parse_fail
+    prompt: str
+    prediction: str
+    gold: str
+    eval_res: str
+    eval_details: str
+
+
+class JobQualityOut(BaseModel):
+    """执行质量统计（仅 eval 任务且产出 details 时 available=True）。"""
+    available: bool
+    total: int | None = None
+    good: int | None = None
+    empty_output: int | None = None
+    parse_fail: int | None = None
+    good_ratio: float | None = None
+    samples: list[QualitySample] | None = None
+
+
 class EvaluationOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int
@@ -283,6 +303,7 @@ class CellPointerIn(BaseModel):
 class CellRerunIn(BaseModel):
     what: Literal["infer", "eval", "both"]
     source_prediction_id: int | None = None
+    judge_id: int | None = None  # 重跑含评分时可指定评分模型，留空沿用批次默认
 
 
 # ── 测评分析 ──────────────────────────────────────────────────────────

@@ -134,6 +134,7 @@ export const api = {
     get: (id) => request(`/jobs/${id}`),
     log: (id) => request(`/jobs/${id}/log`),
     frameworkLog: (id) => request(`/jobs/${id}/framework-log`),
+    quality: (id) => request(`/jobs/${id}/quality`),
     cancel: (id) => request(`/jobs/${id}/cancel`, { method: 'POST' }),
   },
 

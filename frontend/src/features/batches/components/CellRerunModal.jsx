@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../../lib/api';
 import { Modal } from '../../../components/ui/Modal';
 
@@ -12,6 +12,9 @@ export function CellRerunModal({ open, onClose, batchId, modelId, taskId, histor
   const qc = useQueryClient();
   const [what, setWhat] = useState('both');
   const [sourcePid, setSourcePid] = useState('');
+  const [judgeId, setJudgeId] = useState('');
+
+  const { data: judges } = useQuery({ queryKey: ['judges'], queryFn: api.judges.list });
 
   const inferOptions = useMemo(
     () => history.filter((h) => h.kind === 'infer' && h.status === 'success' && h.prediction_id),
@@ -22,6 +25,7 @@ export function CellRerunModal({ open, onClose, batchId, modelId, taskId, histor
     mutationFn: () => api.batches.cellRerun(batchId, modelId, taskId, {
       what,
       source_prediction_id: what === 'eval' && sourcePid ? Number(sourcePid) : null,
+      judge_id: what === 'eval' && judgeId ? Number(judgeId) : null,
     }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['cell', batchId, modelId, taskId] });
@@ -85,6 +89,21 @@ export function CellRerunModal({ open, onClose, batchId, modelId, taskId, histor
                 ))}
               </select>
             )}
+
+            <label className="label mt-4">评分模型</label>
+            <select
+              className="input"
+              value={judgeId}
+              onChange={(e) => setJudgeId(e.target.value)}
+            >
+              <option value="">沿用批次默认评分模型</option>
+              {(judges || []).map((j) => (
+                <option key={j.id} value={j.id}>
+                  {j.name}（{j.model_name}）
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-gray-400 mt-1">不选则使用批次创建时配置的评分模型。</p>
           </div>
         )}
 
