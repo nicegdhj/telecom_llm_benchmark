@@ -308,6 +308,12 @@ docker-compose -f docker-compose.prod.yml --env-file .env up -d   # 启动
 
 ## 11. 迭代更新（在线系统升级，保留老数据）
 
+> **TL;DR（已建立 §6.1 解耦布局后，日常更新就一条命令）：**
+> ```bash
+> bash $BASE/platform_update.sh --pkg $BASE/score_platform_<新时间戳>.tar.gz
+> ```
+> 自动：解压新版目录 → 软链共享数据根 `.env` → 备份数据库 → 导入新镜像 → 停旧+同步 code+起新 → 健康检查 → 切换 `current`。细节见 §11.2。
+
 > 适用：系统**已上线运行一段时间**、积累了模型/批次/评测结果等数据，现在要更新到新版本。
 > 核心原则：**业务数据全在宿主机挂载目录，不随镜像走**；升级只换镜像和 code，数据原样保留，且升级前自动备份。
 
