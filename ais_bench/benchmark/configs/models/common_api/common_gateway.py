@@ -21,7 +21,7 @@ models = [
         retry=2,
         api_key=os.environ["COMMON_API_KEY"],
         url=os.environ["COMMON_URL"],
-        max_out_len=1024,
+        max_out_len=16000,
         batch_size=int(os.environ.get("COMMON_CONCURRENCY", "5")),
         trust_remote_code=False,
         verbose=os.environ.get("EVAL_VERBOSE", "false").lower() == "true",

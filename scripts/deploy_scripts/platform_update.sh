@@ -40,7 +40,16 @@ log(){ echo "▶ $*"; }
 ok(){ echo "  ✅ $*"; }
 warn(){ echo "  ⚠️  $*"; }
 die(){ echo "  ❌ $*" >&2; exit 1; }
-confirm(){ [ "$ASSUME_YES" = 1 ] && return 0; read -r -p "  ➤ $* [y/N] " a; case "$a" in [yY]|[yY][eE][sS]) return 0;; *) return 1;; esac; }
+confirm(){
+  [ "$ASSUME_YES" = 1 ] && return 0
+  # 从真实终端读，避免脚本被管道/重定向运行时 read 拿到 EOF 直接"已取消"
+  if [ -r /dev/tty ]; then
+    read -r -p "  ➤ $* [y/N] " a </dev/tty
+  else
+    die "非交互环境无法确认；请加 -y 重新执行（如：bash platform_update.sh --pkg <包> -y）"
+  fi
+  case "$a" in [yY]|[yY][eE][sS]) return 0;; *) return 1;; esac
+}
 
 if command -v docker-compose >/dev/null 2>&1; then DC=(docker-compose)
 elif docker compose version >/dev/null 2>&1; then DC=(docker compose)
@@ -128,6 +137,10 @@ ok "镜像已导入"
 # ---- 5. 停旧容器 + 同步 code + 起新容器 ----
 log "[5/7] 停旧容器 → 同步 code → 起新容器"
 ( cd "$REL" && "${COMPOSE[@]}" down ) || warn "down 返回非零（可能本就未运行），继续"
+# 容器名固定为 score-backend / score-front（全局唯一）。上一版可能由别的 compose
+# 项目名（旧目录名）启动，本目录的 down 停不到它 → up 会 "name already in use"。
+# 这里按名兜底强制清理（数据在 bind mount，删容器不丢数据）；评测算子 eval-* 不受影响。
+docker rm -f score-backend score-front >/dev/null 2>&1 || true
 ( cd "$REL" && bash init_workspace.sh )
 ( cd "$REL" && "${COMPOSE[@]}" up -d )
 ok "新容器已启动"
