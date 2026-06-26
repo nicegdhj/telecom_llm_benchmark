@@ -427,23 +427,65 @@ async def _run_eval(db: Session, job: Job, settings):
             env_file.unlink(missing_ok=True)
 
 
-async def run_pending_jobs_once():
-    settings = get_settings()
-    job_id = None
-    with get_session() as db:
-        global_running = db.query(Job).filter_by(status="running").count()
-        if global_running >= settings.default_job_concurrency:
-            return
-        job = _pick_next_job(db)
-        if not job:
-            return
-        job_id = job.id
+# 在途的后台 job 执行任务：持有引用防 GC，并支持等待/优雅关闭
+_inflight: set[asyncio.Task] = set()
+
+
+async def _run_job(job_id: int, job_type: str, settings):
+    """后台执行单个已领取（已置 running）的 job，使用独立 session。"""
     with get_session() as db:
         job = db.get(Job, job_id)
-        if job.type == "infer":
+        if job is None:
+            return
+        if job_type == "infer":
             await _run_infer(db, job, settings)
         else:
             await _run_eval(db, job, settings)
+
+
+def _dispatch(job_id: int, job_type: str, settings) -> asyncio.Task:
+    """把一个已领取的 job 丢到后台并行执行（不阻塞调度循环）。"""
+    task = asyncio.create_task(_run_job(job_id, job_type, settings))
+    _inflight.add(task)
+
+    def _done(t: asyncio.Task):
+        _inflight.discard(t)
+        if not t.cancelled() and t.exception() is not None:
+            logger.error("job %d task crashed", job_id, exc_info=t.exception())
+
+    task.add_done_callback(_done)
+    return task
+
+
+async def run_pending_jobs_once():
+    """在全局并发上限内，尽量多地领取 pending job 并【并行】派发执行。
+
+    关键：领取即把 job 置 running 并提交，使并发计数立刻准确，避免下一轮
+    （或下一个 poll 周期）重复领取同一个 job。派发后不 await 其完成，
+    调度循环继续填满空闲并发槽，直到达到上限或没有可执行 job。
+    """
+    settings = get_settings()
+    while True:
+        with get_session() as db:
+            running = db.query(Job).filter_by(status="running").count()
+            if running >= settings.default_job_concurrency:
+                return
+            job = _pick_next_job(db)
+            if job is None:
+                return
+            # 领取即标 running（防并发重复领取）；started_at 先占位，
+            # 具体执行函数内还会再 commit 一次 log_path 等运行态信息。
+            job.status = "running"
+            job.started_at = datetime.utcnow()
+            jid, jtype = job.id, job.type
+            db.commit()
+        _dispatch(jid, jtype, settings)
+
+
+async def wait_inflight():
+    """等待所有在途 job 执行完（供测试与优雅关闭使用）。"""
+    while _inflight:
+        await asyncio.gather(*list(_inflight), return_exceptions=True)
 
 
 async def worker_loop():
