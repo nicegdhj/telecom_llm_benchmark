@@ -254,6 +254,73 @@ ls "$WORKSPACE_DIR/data"       # 应能看到 ceval/ custom_task/ 等真实目�
 - 不想用软链也可放两份真实目录：generic 放 `/opt/data`、custom 放 `/opt/eval_workspace/data`，效果一样但占双份空间。
 - 数据集如何传到私域机：在打包机 `tar -czf datasets.tar.gz -C <项目根> data` 后 `scp` 过去，解压到 `WORKSPACE_DIR/data` 即可（数据集体量大，故不随平台包走）。
 
+### 7.2 手动导入数据集版本（私域不走 Web 上传时）
+
+> ⚠️ **适用范围：仅 custom 任务（`task_N_suite`，数据为单个 jsonl 文件）。**
+> generic 任务（ceval/mmlu_redux/BBH/gpqa… 数据为整目录）**暂不支持版本管理**——给它上传/插版本记录平台会显示，但评测实际仍读 `data/<数据集>/` 内置数据，版本是“假”的。generic 换数据请**直接替换 `data/<数据集>/` 目录**（替换前自行 `cp -r` 备份）。原因与后续“目录化版本管理”优化计划见 `my_doc/score_platform.md` §10.1。
+
+私域因安全限制无法用「任务与数据 → 上传数据集」时，可手动给某 **custom 任务**新增一个版本（如给 `task_43_suite` 加 `v2`）。
+
+**关键认知**：平台「能否看到某版本」**只取决于数据库 `dataset_versions` 表里有没有这一行，与磁盘上有没有文件无关**——平台不扫盘自动发现。所以手动导入 = 等价完成 Web 上传后端做的两件事：
+
+1. 把数据文件放到约定路径 `WORKSPACE_DIR/data/versions/<任务全名>/<tag>/data.jsonl`
+2. 往 `dataset_versions` 插一行记录（`task_id / tag / data_path / content_hash / is_default / note`）
+
+> **运行时为何跑得通**：评测某 custom 任务时，worker 发现所选版本的 `data_path` ≠ 内置固定路径，就把固定路径 `data/custom_task/task_<n>.jsonl` 软链到该版本文件，ais_bench 照常读固定路径 → 实际读到的就是新版本。所以无需改 ais_bench 配置、后端无需重启。
+
+#### 一键脚本（推荐）
+
+仓库 `scripts/deploy_scripts/import_dataset_version.sh` 已封装上述两步，并带上传接口同款校验（任务存在性、`(task_id, tag)` 唯一、jsonl 首行合法、`--default` 互斥、写库失败自动回滚文件）。把它放到平台目录 `BASE`（与 `platform_update.sh` 并排，新包内 `code/scripts/deploy_scripts/` 下有一份），然后：
+
+```bash
+bash /opt/eval_platform/import_dataset_version.sh \
+     --base /opt/eval_platform \
+     --task task_43_suite \
+     --tag  v2 \
+     --file /你的路径/task_43_v2.jsonl \
+     --note "二期数据"
+# 想设为该任务默认版本加 --default；自动化加 -y
+```
+
+| 参数 | 说明 |
+|------|------|
+| `--task` | **任务文件全名**（如 `task_43_suite`），**必须全名、不可简写**；列表见「任务与数据」页 |
+| `--tag`  | 版本标签（同一任务内唯一，如 `v2`） |
+| `--file` | 源数据 `.jsonl`，**每行结构须与内置同任务数据一致**（上传/导入都只校验首行是合法 JSON，不校验字段语义） |
+| `--default` | 设为该任务默认版本（自动清掉同任务其它默认） |
+| `--note` | 备注；`--base` 平台目录（含 `score_data/.env`，默认=脚本所在目录）；`--force` 覆盖已存在文件；`-y` 跳过确认 |
+
+脚本默认借**运行中的 `score-backend` 容器的 python** 读写数据库（私域宿主机常无 python3）；容器未运行时回退宿主机 python3。因 DB 与 `WORKSPACE_DIR` 都是容器内外同路径的 bind mount，容器内可直接读到刚放进去的数据文件。
+
+执行完**刷新**「任务与数据 → 该任务」即可看到新版本，建测评时在该任务的数据版本下拉中选中即可。
+
+#### 等价手动步骤（便于理解 / 应急）
+
+```bash
+set -a; . /opt/eval_platform/score_data/.env; set +a      # 取 WORKSPACE_DIR / BACKEND_DATA_DIR
+KEY=task_43_suite; TAG=v2; REL="data/versions/$KEY/$TAG/data.jsonl"
+
+# 1. 放文件（路径要和上传逻辑完全一致）
+mkdir -p "$WORKSPACE_DIR/data/versions/$KEY/$TAG"
+cp /你的路径/task_43_v2.jsonl "$WORKSPACE_DIR/$REL"
+HASH=$(sha256sum "$WORKSPACE_DIR/$REL" | cut -d' ' -f1)   # content_hash 可空，算上更规范
+
+# 2. 插一行库记录（用容器 python，DB 在容器内固定 /opt/eval_backend_data）
+docker exec -e KEY="$KEY" -e TAG="$TAG" -e REL="$REL" -e HASH="$HASH" \
+  score-backend python3 - <<'PY'
+import os, sqlite3, datetime
+con = sqlite3.connect("/opt/eval_backend_data/eval_backend.db", timeout=30); cur = con.cursor()
+tid = cur.execute("SELECT id FROM tasks WHERE key=?", (os.environ["KEY"],)).fetchone()[0]
+cur.execute("INSERT INTO dataset_versions (task_id,tag,data_path,content_hash,is_default,uploaded_at,note)"
+            " VALUES (?,?,?,?,0,?,?)",
+            (tid, os.environ["TAG"], os.environ["REL"], os.environ["HASH"],
+             datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M:%S"), "手动导入"))
+con.commit(); print("inserted id", cur.lastrowid)
+PY
+```
+
+> 注意：`data_path` 用**相对 `WORKSPACE_DIR`** 的相对路径，且**必须 ≠** `data/custom_task/task_<n>.jsonl`（否则 worker 当成内置版本不软链）；`(task_id, tag)` 有唯一约束，tag 不能重复。优先用上面的一键脚本，手动步骤仅作原理参考。
+
 ---
 
 ## 8. 启动后验证
