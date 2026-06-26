@@ -677,4 +677,40 @@ cat ${BACKEND_DATA_DIR}/logs/<job_id>.log
 
 ---
 
+## 10. 已知限制与待优化（技术债）
+
+### 10.1 数据集版本管理仅支持 custom 任务（单文件），generic 任务（目录）不支持 — 待统一
+
+**问题现状**（截至 2026-06）：
+
+平台的「数据集版本管理」（`dataset_versions` 表 + Web 上传 + `versions/<task_key>/<tag>/data.jsonl` 落盘 + 运行时软链）**目前只对 custom 任务生效**：
+
+| 任务类型 | 数据形态 | 版本管理 | 运行时换数据的机制 |
+|---------|---------|---------|------------------|
+| **custom**（`task_N_suite`） | 单个 jsonl 文件 `data/custom_task/task_N.jsonl` | ✅ 支持 | `worker.py` 把固定读取路径**软链**到所选版本文件（单点替换） |
+| **generic**（ceval/mmlu_redux/BBH/gpqa…） | 整个目录 `data/<dataset>/`（多子目录/多 split） | ❌ **不支持** | 无；直接读 ais_bench suite config 里写死的目录 path |
+
+**根因**（为何当前不支持，而非简单遗漏）：
+
+1. **数据形态不匹配**：版本模型按「单文件」设计——`dataset_versions.data_path` 指向一个文件、上传接口只收一个 `.jsonl`。generic 是整目录（如 mmlu_redux 有 57 个学科子目录、ceval 有 dev/val/test 多个 csv），「单文件=版本」套不上目录。
+2. **替换机制不通用**：custom 靠 `worker.py` 软链**一个固定单点文件**实现换版本（`if run_task_type == "custom"` 分支）；generic 的读取路径写死在 ais_bench 框架 config（如 `path='data/mmlu_redux'`），worker 没有干净的劫持点，且要保证目录内部结构一致。
+
+**当前的认知陷阱（务必注意）**：
+
+- generic 任务在「任务与数据」上传版本、或手动往 `dataset_versions` 插记录，平台**会显示该版本、`Prediction` 也会记 `dataset_version_id`**，但 `worker` 实际跑的仍是 `data/<dataset>/` 内置数据——**该版本是“假”的、不会被使用**。这是数据管理混乱的来源之一。
+- 现状下的正确操作：**custom 走版本机制（`versions/` + 脚本/上传）；generic 换数据请直接替换 `data/<dataset>/` 目录**，并自行在宿主机备份旧目录。
+
+**优化方向（后续迭代）**：
+
+统一为**「目录化版本管理」**，单文件作为目录的特例：
+
+1. 版本存储统一为 `versions/<task_key>/<tag>/`**目录**（custom 仍放 `data.jsonl`，generic 放完整数据子树）；`dataset_versions.data_path` 语义从「文件」放宽为「目录或文件」。
+2. `worker` 对 generic 也支持版本：对**目录**做软链/绑定挂载替换（或动态改写该 suite config 的 `path` 指向版本目录），与 custom 的单点软链统一为一套「按所选版本解析实际读取路径」的逻辑。
+3. 上传接口支持目录（zip/tar 打包上传后解包）；下载接口已支持目录打包，可对称。
+4. 对 generic 选了「无版本/内置」时回退到 config 原始 path，保证基准可比性不被破坏。
+
+> 落地前请保持现状操作约定，避免给 generic 任务挂版本造成“数据看着换了、实际没换”的误判。
+
+---
+
 *文档由 Score Platform 开发团队整理，如有更新请同步修改本文档。*
