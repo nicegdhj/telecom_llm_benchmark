@@ -580,6 +580,16 @@ class BFCLSingleTurnEvaluator(BFCLEvaluator):
 
             if checker_result["valid"]:
                 correct_count += 1
+                details.append({
+                    "id": index,
+                    "prompt": test_set[i]["question"],
+                    "origin_prediction": model_result_item_raw,
+                    "predictions": model_result_item,
+                    "references": possible_answer_item,
+                    "correct": True,
+                    "pred": str(model_result_item),
+                    "answer": str(possible_answer_item),
+                })
             else:
                 # Record error details for failed cases
                 temp = {}

@@ -6,7 +6,12 @@ from tqdm import tqdm
 from abc import abstractmethod
 from typing import Any, Dict, List, Tuple
 
-import curses
+try:
+    import curses
+    HAS_CURSES = True
+except ImportError:
+    HAS_CURSES = False
+    curses = None
 from tabulate import tabulate
 from datetime import datetime, timedelta
 from mmengine.config import Config, ConfigDict
@@ -63,6 +68,9 @@ class TasksMonitor:
                     )
 
     def is_running_in_background(self):
+        if not HAS_CURSES:
+            self.logger.warning("Can't import curses (likely running on Windows), running in background mode")
+            return True
         try:
             curses.initscr()    # raise if not link to terminal
             curses.curs_set(0)  # raise if terminal not support cursor
@@ -262,7 +270,7 @@ class TasksMonitor:
                     for i, line in enumerate(current_table_lines):
                         if i + 5 < curses.LINES:  # make sure the line won't out of screen height
                             stdscr.addstr(i + 5, 0, line)
-                except curses.error as e:
+                except Exception as e:
                     # handle curses error, prevent program crash
                     self.logger.debug(f"Curses display error (screen may be too small): {e}")
                     pass

@@ -10,6 +10,7 @@ JSON 字段级评估器
 5. 嵌套结构支持
 """
 
+import ast
 import json
 import re
 import warnings
@@ -54,6 +55,14 @@ def safe_parse_json(text: str) -> Optional[Dict]:
     try:
         return json.loads(text)
     except json.JSONDecodeError:
+        pass
+
+    # 尝试 ast.literal_eval，兼容 Python dict 字符串（单引号格式）
+    try:
+        result = ast.literal_eval(text)
+        if isinstance(result, dict):
+            return result
+    except (ValueError, SyntaxError):
         pass
 
     # 尝试提取 JSON 块（可能被其他文本包裹）
@@ -415,3 +424,206 @@ class BusinessClassificationEvaluator(JsonFieldEvaluator):
             return_details=True,
             **kwargs,
         )
+
+from ais_bench.benchmark.openicl.icl_evaluator.llm_judge_evaluator import LLMJudgeEvaluator
+from ais_bench.benchmark.utils.logging.logger import AISLogger
+
+LLM_FALLBACK_PROMPT = """
+# Role
+你是一个高精度的自然语言处理评分专家，擅长评估“模型提取结果 (Pre)”与“标准答案 (Gold)”之间的语义一致性。
+
+# Task
+对比 Pre 和 Gold 中的信息，判断两者是否指向同一实体或表达完全相同的核心意思。即使字面不完全一致，只要语义等价即视为正确。
+
+# Evaluation Criteria
+1. **语义对齐 (给 1 分)**：
+   - 实体简称与全称：如“浙江”与“浙江省”。
+   - 同义词与多语言：如“计算机”与“电脑”。
+   - 格式与符号干扰：存在多余空格、大小写差异、或合理的单位省略（如“100元”与“100”）。
+2. **不匹配或信息缺失 (给 0 分)**：
+   - 核心信息冲突或关键限定词丢失，导致语义范围扩大或改变。
+3. **严格打分**：仅允许输出 0 或 1，禁止输出 0.5 等中间值。
+
+# Output Format
+必须严格输出合法的 JSON 格式，不要包含任何 Markdown 标记（如 ```json），格式如下：
+{{
+  "score": <0或1的整数>,
+  "reason": "<简短说明判分理由>"
+}}
+
+Gold: {reference}
+Pre: {prediction}
+"""
+
+@ICL_EVALUATORS.register_module()
+class JsonWithLLMFallbackEvaluator(JsonFieldEvaluator):
+    """
+    在 JsonFieldEvaluator 基础上，仅对 fault_location 字段进行 LLM 语义兜底。
+    总体评分框架与 JsonFieldEvaluator 完全保持一致（支持 strict_mode / weight）。
+    """
+
+    LLM_FALLBACK_FIELD = "fault_location"
+
+    def __init__(self, **kwargs):
+        kwargs["default_match_type"] = "exact"
+        kwargs["return_details"] = True
+        super().__init__(**kwargs)
+        self._llm_evaluator = None
+        self.logger = AISLogger()
+
+    @property
+    def llm_evaluator(self):
+        if self._llm_evaluator is None:
+            self._llm_evaluator = LLMJudgeEvaluator()
+        return self._llm_evaluator
+
+    def _extract_field_value(self, raw: str, field: str):
+        """从原始预测/标准答案字符串中提取指定字段的值"""
+        parsed = safe_parse_json(str(raw))
+        if isinstance(parsed, dict):
+            return parsed.get(field)
+        return None
+
+    def _recompute_sample_accuracy(self, field_scores: dict) -> float:
+        """根据 field_scores 重新计算样本级准确率（与 _evaluate_single 保持一致）"""
+        if not field_scores:
+            return 0.0
+        if self.strict_mode:
+            return 1.0 if all(s == 1.0 for s in field_scores.values()) else 0.0
+        total_weight = 0.0
+        weighted_score = 0.0
+        for field_name, score in field_scores.items():
+            config = self._get_field_config(field_name)
+            weight = config.get("weight", 1.0)
+            if self.strict_mode and weight == 0:
+                continue
+            weighted_score += score * weight
+            total_weight += weight
+        return weighted_score / total_weight if total_weight > 0 else 0.0
+
+    def _call_llm_batch(self, prompts: List[str]) -> List[str]:
+        """批量调用 LLM，返回原始输出列表"""
+        if not prompts or self.llm_evaluator.model is None:
+            return []
+        _m = self.llm_evaluator.model
+        self.logger.info(
+            f"[LLM Debug] URL={getattr(_m, 'url', 'N/A')} "
+            f"model={getattr(_m, 'model', 'N/A')} "
+            f"headers_keys={list(getattr(_m, 'headers', {}).keys())}"
+        )
+        if getattr(_m, 'is_api', False):
+            import asyncio
+            from ais_bench.benchmark.models.output import RequestOutput
+            import aiohttp
+            async def _run():
+                async with aiohttp.ClientSession(trust_env=True) as session:
+                    outputs = [RequestOutput(False) for _ in prompts]
+                    tasks = [
+                        _m.generate(input_data=p, max_out_len=512, output=out, session=session)
+                        for p, out in zip(prompts, outputs)
+                    ]
+                    await asyncio.gather(*tasks)
+                    for i, out in enumerate(outputs):
+                        self.logger.info(
+                            f"[LLM API] idx={i} success={out.success} "
+                            f"error={out.error_info!r} content_len={len(out.content)}"
+                        )
+                    return [out.content for out in outputs]
+            try:
+                loop = asyncio.get_event_loop()
+            except RuntimeError:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+            if loop.is_running():
+                import nest_asyncio
+                nest_asyncio.apply()
+            return loop.run_until_complete(_run())
+        else:
+            return _m.generate(prompts, max_out_len=512)
+
+    def _parse_llm_score(self, judge_output: str) -> float:
+        """解析 LLM 返回的 JSON，提取 score 字段"""
+        if not judge_output:
+            return 0.0
+        clean = str(judge_output).strip()
+        clean = re.sub(r'```json\s*', '', clean, flags=re.IGNORECASE)
+        clean = re.sub(r'```\s*', '', clean).strip()
+        try:
+            return float(json.loads(clean).get("score", 0))
+        except Exception as e:
+            self.logger.warning(f"[LLM Parse] 解析失败 (给0分): {e} | 原文: {clean}")
+            return 0.0
+
+    def score(self, predictions: List, references: List) -> Dict:
+        self.logger.info(
+            f"========== 开始 JsonWithLLMFallbackEvaluator 评估，共 {len(predictions)} 条数据 =========="
+        )
+        # ① 先用 JsonFieldEvaluator 进行全量 Exact Match 评估
+        base_res = super().score(predictions, references)
+        details = base_res.get("details", [])
+
+        if self.llm_evaluator.model is None:
+            self.logger.info("========== 评估结束（无 LLM 模型，使用纯规则结果）==========")
+            return base_res
+
+        # ② 找出 fault_location 字段得分为 0 的样本，准备 LLM 兜底
+        fallback_indices = []
+        prompts = []
+        for i, detail in enumerate(details):
+            field_scores = detail.get("eval_details") or {}
+            loc_score = field_scores.get(self.LLM_FALLBACK_FIELD)
+            if loc_score is not None and loc_score < 1.0:
+                pred_val = self._extract_field_value(predictions[i], self.LLM_FALLBACK_FIELD)
+                gold_val = self._extract_field_value(references[i], self.LLM_FALLBACK_FIELD)
+                self.logger.info(
+                    f"[Fallback Triggered] 第 {i} 条数据 fault_location Exact Match 失败。\n"
+                    f" - Pred: {pred_val}\n"
+                    f" - Gold: {gold_val}"
+                )
+                fallback_indices.append(i)
+                prompts.append(LLM_FALLBACK_PROMPT.format(
+                    reference=str(gold_val), prediction=str(pred_val)
+                ))
+            else:
+                self.logger.info(f"[Exact Match] 第 {i} 条数据 fault_location 匹配成功（score={loc_score}）")
+
+        # ③ 批量调 LLM，只针对 fault_location
+        if prompts:
+            self.logger.info(f"[LLM Run] 共 {len(prompts)} 条 fault_location 进入 LLM 兜底判分...")
+            judgements = self._call_llm_batch(prompts)
+
+            for list_pos, idx in enumerate(fallback_indices):
+                judge_output = judgements[list_pos] if list_pos < len(judgements) else ""
+                llm_score = self._parse_llm_score(judge_output)
+                self.logger.info(
+                    f"--- 第 {idx} 条 fault_location LLM 兜底结果 ---\n"
+                    f"原始输出: {judge_output}\n"
+                    f"解析得分: {llm_score}"
+                )
+                # 更新该样本的 fault_location 字段分数
+                field_scores = dict(details[idx].get("eval_details") or {})
+                field_scores[self.LLM_FALLBACK_FIELD] = llm_score
+                details[idx]["eval_details"] = field_scores
+                details[idx]["llm_judge_output"] = judge_output
+
+                # ④ 用更新后的 field_scores 重新计算样本级 accuracy（严格模式 AND 逻辑）
+                new_accuracy = self._recompute_sample_accuracy(field_scores)
+                details[idx]["eval_res"] = True if new_accuracy == 1.0 else False
+
+        # ⑤ 重新汇总，保持与 JsonFieldEvaluator 一致的输出格式
+        total_accuracy = 0.0
+        all_field_scores: dict = {}
+        for detail in details:
+            acc = 1.0 if detail.get("eval_res") is True else 0.0
+            total_accuracy += acc
+            for field, fscore in (detail.get("eval_details") or {}).items():
+                all_field_scores.setdefault(field, []).append(fscore)
+
+        n = len(predictions)
+        base_res["accuracy"] = (total_accuracy / n) * 100 if n > 0 else 0.0
+        base_res["details"] = details
+        for field, scores in all_field_scores.items():
+            base_res[f"field_{field}"] = (sum(scores) / len(scores)) * 100
+
+        self.logger.info(f"========== 评估结束，总体准确率为: {base_res['accuracy']}% ==========")
+        return base_res

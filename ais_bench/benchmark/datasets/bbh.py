@@ -65,20 +65,57 @@ def bbh_mcq_postprocess(text: str) -> str:
 
 @TEXT_POSTPROCESSORS.register_module('bbh-freeform')
 def bbh_freeform_postprocess(text: str) -> str:
+    def clean_debris(s: str) -> str:
+        # 去除开头的冒号、星号、空白符
+        s = re.sub(r'^[:：\*\s]+', '', s)
+        # 去除结尾的句号、星号、空白符
+        s = re.sub(r'[\.\*\s]+$', '', s)
+        return s
     ans = text
-    ans_line = ans.split('answer is ')
-    if len(ans_line) != 1:
-        ans = ans_line[1].strip()
-    ans = ans.split('\n')[0].strip()
+    keyword = 'answer is'
+    if keyword in ans:
+        idx = ans.rfind(keyword)
+        prefix = ans[:idx]
+        suffix = ans[idx + len(keyword):]
+        star_count = prefix.count('**')
+        if star_count % 2 != 0:
+            # 如果是奇数，说明分割点在加粗内部，给后面补上星号
+            ans = '**' + suffix
+        else:
+            ans = suffix        
 
-    if ans.endswith('.'):
-        ans = ans[:-1].strip()
+    # 1. 处理类似 "**Answer:** invalid", "**Answer**: invalid", "**答案:** invalid" 等情况
+    # 提前把它的前缀过滤掉，并将剩余的部分保留下来。加入 re.DOTALL 以便处理 **Answer:** 和 invalid 之间有换行符的情况
+    match_prefix = re.search(
+    r'[\#\*\s]*(?:final\s+)?(?:answer|答案)[\#\*\s]*[:：]?[\#\*\s]*([\s\S]*?)(?:\*\*|###|$)', 
+    ans, 
+    flags=re.IGNORECASE | re.DOTALL
+    )
+    if match_prefix:
+        temp_ans = match_prefix.group(1).strip()
+        if temp_ans:
+            # 给 ans 重新赋值，继续往下走，这样也能正确处理 **Answer:** **invalid** 的情况
+            ans = temp_ans
 
-    match = re.search(r'\*\*(.*?)\*\*', ans)
+    # 2. 传统逻辑：提取被单独包裹在 **XXX** 内的内容
+    match = re.search(r'\*\*(.*?)\*\*', ans,flags=re.DOTALL)
     if match:
-        return match.group(1)
-
-    return ans
+        extracted = match.group(1).strip()
+        
+        # 防止漏网之鱼：如果被单独提取出来的刚好是无意义的标题 "Answer:"
+        if extracted.lower().startswith('answer:'):
+            return clean_debris(extracted[7:])
+        elif extracted.lower().startswith('answer'):
+            clean_extracted = re.sub(r'^(?i)answer\s*', '', extracted)
+            return clean_debris(clean_extracted[7:])
+        match_letter = re.match(r'^[a-eA-E][:：]\s*(.*)', extracted)
+        if match_letter:
+            return clean_debris(match_letter.group(1))
+        return clean_debris(extracted)
+    lines_fallback = [line.strip() for line in ans.split('\n') if line.strip()]
+    if lines_fallback:
+        return clean_debris(lines_fallback[-1])
+    return clean_debris(ans)
 
 
 @ICL_EVALUATORS.register_module()

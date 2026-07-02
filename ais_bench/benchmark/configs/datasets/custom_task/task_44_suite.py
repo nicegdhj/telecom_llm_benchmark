@@ -3,6 +3,7 @@ from ais_bench.benchmark.openicl.icl_retriever import ZeroRetriever
 from ais_bench.benchmark.openicl.icl_inferencer import GenInferencer
 from ais_bench.benchmark.openicl.icl_evaluator import JsonFieldEvaluator
 from ais_bench.benchmark.datasets.custom import CustomDataset
+from ais_bench.benchmark.openicl.icl_evaluator.json_field_evaluator import JsonWithLLMFallbackEvaluator
 
 # task_44: 自定义评测任务
 # Evaluator: JsonFieldEvaluator
@@ -89,7 +90,7 @@ task_44_infer_cfg = dict(
 
 task_44_eval_cfg = dict(
     evaluator=dict(
-        type=JsonFieldEvaluator,
+        type=JsonWithLLMFallbackEvaluator,
         field_config={
             "faultNumber": {"match_type": "exact", "weight": 1.0},
             "fault_time": {"match_type": "exact", "weight": 1.0},

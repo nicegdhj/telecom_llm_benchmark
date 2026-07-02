@@ -92,9 +92,11 @@ def parse_args():
 
 # ── LLM 评估器检测 ───────────────────────────────────────────────────
 def detect_evaluator_type(suite_name: str) -> str:
-    """扫描 suite 配置文件，检测 evaluator 是否为 LLMJudgeEvaluator。
+    """扫描 suite 配置文件，检测 evaluator 是否需要 LLM 打分模型。
 
-    搜索 ais_bench/benchmark/configs/datasets/ 下匹配 {suite_name}.py 的文件。
+    两级检测：
+      1. 配置文件中直接包含 LLMJudgeEvaluator 字符串
+      2. 配置文件引用的评测器（如 ExamDynamicEvaluator）内部依赖 LLMJudgeEvaluator
 
     Returns:
         'llm' 或 'rule'
@@ -103,6 +105,10 @@ def detect_evaluator_type(suite_name: str) -> str:
         try:
             content = py_file.read_text(encoding="utf-8")
             if "LLMJudgeEvaluator" in content:
+                return "llm"
+            # 评分器名不直接包含 LLMJudgeEvaluator 但可能内部引用了它
+            # 如 ExamDynamicEvaluator
+            if "ExamDynamicEvaluator" in content:
                 return "llm"
         except Exception:
             pass
@@ -160,13 +166,16 @@ def run_eval_for_task(
     details_base = str(infer_task_dir / "details")
 
     cmd = [
-        "ais_bench",
+        sys.executable, "-m", "ais_bench.benchmark.cli.main",
         "--mode", "eval",
         "--work-dir", details_base,
         "--reuse", timestamp,
         "--models", model_config,
         "--datasets", suite,
     ]
+
+    # 任务开始前清理残留共享内存，防止前面任务的泄漏累积导致死锁
+    _cleanup_leaked_shm()
 
     start_time = time.time()
     status = "success"
@@ -257,6 +266,27 @@ def _parse_eval_result(work_dir: Path, suite: str) -> tuple:
                 accuracy = round(total_acc / valid_count, 2)
         except Exception:
             pass
+
+    # 兜底：summary 缺失时，从各子任务结果 JSON 文件恢复得分（简单平均）
+    # 适用场景：ais_bench eval 写完各子任务结果后在 summary 阶段挂起被 kill
+    if accuracy is None:
+        score_files = [
+            f for f in (work_dir / "results").glob("**/*.json")
+            if not f.name.endswith("_details.json")
+        ]
+        subtask_scores = []
+        for jf in score_files:
+            try:
+                data = json.loads(jf.read_text(encoding="utf-8"))
+                if "error" in data:
+                    continue
+                score = data.get("accuracy", data.get("score"))
+                if isinstance(score, (int, float)):
+                    subtask_scores.append(float(score))
+            except Exception:
+                pass
+        if subtask_scores:
+            accuracy = round(sum(subtask_scores) / len(subtask_scores), 2)
 
     # 从 results 的 details.jsonl 统计样本数
     details_files = list((work_dir / "results").glob("**/*_details.jsonl"))

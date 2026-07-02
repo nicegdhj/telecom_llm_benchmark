@@ -1,15 +1,26 @@
 import argparse
 import copy
 import fnmatch
+import importlib.util
 import threading
 import math
 import os
 import os.path as osp
 import statistics
 import sys
+
+benchmark_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+sys.path.insert(0, benchmark_dir)
+
+if sys.platform == "darwin":
+    import multiprocessing
+    multiprocessing.set_start_method("fork", force=True)
+
 import time
 from collections import Counter
+from functools import lru_cache
 from inspect import signature
+from pathlib import Path
 from typing import List
 import mmap
 import orjson
@@ -47,6 +58,34 @@ TYPE_DEFAULT_MAP = {
     int: 0,
     float: 0,
 }
+
+
+@lru_cache(maxsize=32)
+def _evaluator_requires_llm_judge(evaluator_type: str) -> bool:
+    """检查评测器是否需要 LLM 打分模型。
+
+    两级检测：
+      1. 类型名直接包含 LLMJudgeEvaluator（如直接使用）
+      2. 扫描评测器源码是否引用了 LLMJudgeEvaluator（如 ExamDynamicEvaluator 等包装器）
+
+    任何未来新增的评测器只要在其源码中引用了 LLMJudgeEvaluator，都会被自动检测到。
+    """
+    # 第一级：类型名直接匹配
+    if "LLMJudgeEvaluator" in evaluator_type:
+        return True
+
+    # 第二级：解析模块路径，扫描源码
+    try:
+        module_name = evaluator_type.rsplit(".", 1)[0]
+        spec = importlib.util.find_spec(module_name)
+        if spec and spec.origin and spec.origin.endswith(".py"):
+            source = Path(spec.origin).read_text(encoding="utf-8")
+            if "LLMJudgeEvaluator" in source:
+                return True
+    except Exception:
+        pass
+
+    return False
 
 
 @TASKS.register_module()
@@ -356,11 +395,11 @@ class OpenICLEvalTask(BaseTask):
                 self.eval_cfg["evaluator"].update(
                     {"is_fc_model": self.model_cfg.get("returns_tool_calls")}
                 )
-            if "LLMJudgeEvaluator" in self.eval_cfg["evaluator"]["type"]:
-                if "model_cfg" not in self.eval_cfg["evaluator"] and not os.environ.get("SCORE_MODEL_NAME"):
+            if _evaluator_requires_llm_judge(self.eval_cfg["evaluator"]["type"]):
+                if not os.environ.get("SCORE_MODEL_NAME"):
                     raise ValueError(
-                        "LLMJudgeEvaluator 未配置打分模型：请在 eval_cfg 中指定 model_cfg，"
-                        "或设置 SCORE_MODEL_NAME 等环境变量。"
+                        f"{self.eval_cfg['evaluator']['type'].split('.')[-1]} "
+                        "未配置打分模型：请设置 SCORE_MODEL_NAME 等环境变量。"
                     )
             icl_evaluator: BaseEvaluator = ICL_EVALUATORS.build(
                 self.eval_cfg["evaluator"]
@@ -482,6 +521,20 @@ class OpenICLEvalTask(BaseTask):
                     if item_id in written_ids:
                         continue
                     written_ids.add(item_id)
+
+                    # Merge gold from evaluator details into prediction dict if not already present
+                    gold_val = None
+                    for _gold_key in ("gold", "references", "possible_answer", "answer"):
+                        _v = d.get(_gold_key)
+                        # unwrap single-element list produced by multi-shot grouping
+                        if isinstance(_v, list) and len(_v) == 1:
+                            _v = _v[0]
+                        if _v is not None:
+                            gold_val = _v
+                            break
+                    if gold_val is not None and "gold" not in pred_dict:
+                        pred_dict = dict(pred_dict)  # shallow copy to avoid mutating shared ref
+                        pred_dict["gold"] = gold_val
 
                     out_record = {
                         "prediction": pred_dict,

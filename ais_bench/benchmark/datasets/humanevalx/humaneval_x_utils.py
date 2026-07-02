@@ -27,7 +27,10 @@ import signal
 import subprocess
 import tempfile
 import builtins
-import resource
+try:
+    import resource
+except ImportError:
+    resource = None
 import gzip
 import json
 from typing import Iterable, Dict
@@ -438,7 +441,7 @@ def reliability_guard(maximum_memory_bytes: Optional[int] = None):
     original_unlink = os.unlink
     original_remove = os.remove
     try:
-        if maximum_memory_bytes is not None:
+        if maximum_memory_bytes is not None and resource is not None:
             resource.setrlimit(resource.RLIMIT_AS, (maximum_memory_bytes, maximum_memory_bytes))
             resource.setrlimit(resource.RLIMIT_DATA, (maximum_memory_bytes, maximum_memory_bytes))
             if not platform.uname().system == 'Darwin':

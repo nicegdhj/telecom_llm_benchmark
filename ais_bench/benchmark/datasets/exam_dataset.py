@@ -54,7 +54,7 @@ QUESTION_TYPES = ("multiple_choice", "fill_blank", "subjective")
 # 禁止在配置文件中使用全局统一 prompt，所有格式约束在此集中管理。
 _PROMPT_SUFFIX = {
     "multiple_choice": (
-        "\n\n【作答要求】请直接给出本题的正确选项字母。若有多个空，请按顺序给出对应字母（如 A 或 CD）。，"
+        "\n\n【作答要求】请直接给出本题的正确选项字母。若有多个空，请按顺序给出对应字母（如 A 或 CD）。"
         "不要输出任何解释、标点或其他内容。"
     ),
     "fill_blank": (

@@ -2,12 +2,19 @@ import argparse
 import atexit
 import os
 import sys
+
+benchmark_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+sys.path.insert(0, benchmark_dir)
+
 import threading
 import time
 import json
 from typing import Any, List
 import asyncio
+import sys
 import multiprocessing as mp
+if sys.platform == "darwin":
+    mp.set_start_method("fork", force=True)
 from multiprocessing import Event, Process, Queue, shared_memory, BoundedSemaphore
 from typing import Dict
 import pickle

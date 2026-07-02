@@ -1,0 +1,49 @@
+# ── Score Platform 本地一键启动 ─────────────────────────────────────
+# 架构：
+#   score-front     → React + nginx（静态文件 + API 反向代理）
+#   score-backend   → FastAPI + SQLite + Worker（调度 ais_bench 计算）
+#   ais_bench       → 独立 Docker 镜像（benchmark-eval:latest），
+#                     由 score-backend 通过 docker run 动态启动
+#
+# 使用方式：
+#   bash scripts/deploy_scripts/start-local.sh        # 首次启动
+#   docker compose -f deploy_docker/docker-compose.yml up   # 后续启动
+# ──────────────────────────────────────────────────────────────────
+
+services:
+  score-front:
+    build:
+      context: ../frontend
+      dockerfile: ../deploy_docker/frontend/Dockerfile
+    container_name: score-front
+    ports:
+      - "80:80"
+    depends_on:
+      - score-backend
+    networks:
+      - score-net
+
+  score-backend:
+    build:
+      context: ..
+      dockerfile: deploy_docker/backend/Dockerfile
+    container_name: score-backend
+    ports:
+      - "8080:8080"
+    volumes:
+      # Workspace 路径在宿主机和容器内保持一致，
+      # 这样后端执行 docker run -v 时，docker daemon 能正确解析宿主机路径
+      - ${WORKSPACE_DIR}:${WORKSPACE_DIR}
+      - ${BACKEND_DATA_DIR}:/opt/eval_backend_data
+      # 挂载宿主机 docker socket，使后端能启动 ais_bench 容器
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - EVAL_BACKEND_WORKSPACE_DIR=${WORKSPACE_DIR}
+      - EVAL_BACKEND_BACKEND_DATA_DIR=/opt/eval_backend_data
+      - EVAL_BACKEND_CODE_DIR=${WORKSPACE_DIR}/code
+    networks:
+      - score-net
+
+networks:
+  score-net:
+    driver: bridge

@@ -91,9 +91,12 @@ def check_virtual_memory_usage(
             f"Available: {available_mem / (1024**3):.2f} GB, "
             f"Dataset needed memory size: {dataset_bytes / (1024**2):.8f} MB)"
         )
-        raise AISBenchRuntimeError(
-            TINFER_CODES.VIRTUAL_MEMORY_USAGE_TOO_HIGH, error_msg
-        )
+        if os.name == 'nt':
+            logger.warning(error_msg + " [Ignored on Windows]")
+        else:
+            raise AISBenchRuntimeError(
+                TINFER_CODES.VIRTUAL_MEMORY_USAGE_TOO_HIGH, error_msg
+            )
 
     logger.info(f"Dataset needed memory size: {dataset_bytes / (1024**2):.8f} MB")
     logger.info(

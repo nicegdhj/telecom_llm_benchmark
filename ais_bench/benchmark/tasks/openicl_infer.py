@@ -4,6 +4,14 @@ import os.path as osp
 import random
 import threading
 import sys
+
+benchmark_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+sys.path.insert(0, benchmark_dir)
+
+if sys.platform == "darwin":
+    import multiprocessing
+    multiprocessing.set_start_method("fork", force=True)
+
 import time
 from typing import Any
 

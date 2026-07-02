@@ -72,7 +72,7 @@ def last_capital_postprocess(text: str) -> str:
     return ''
 
 
-def first_option_postprocess_v1(text: str, options: str, cushion=True) -> str:
+def first_option_postprocess_v1(text: str, options: str, cushion=False) -> str:
     """Find first valid option for text, prioritizing the latest match in the text."""
     cut_length = 200
     cut_text = text[-cut_length:]
@@ -88,83 +88,47 @@ def first_option_postprocess(text: str, options: str, cushion=True) -> str:
     # yapf: disable
     # flake8: noqa: W605
     patterns = [
-        rf'^\**\s*(正确)?答案\s*[:：]\s*\*?\*?([{options}])(?=[\.\s]|\*|\))',
-        rf'^\**\s*答案选?\s*\*+\s?([{options}])\s?\*+',
-        rf'答案是?\s*([{options}])',
-        rf'答案是?\s*：\s*([{options}])',
-        rf'答案是?\s*:\s*([{options}])',
-        rf'答案选项应?该?是\s*([{options}])',
-        rf'答案选项应?该?为\s*([{options}])',
-        rf'答案应该?是\s*([{options}])',
-        rf'答案应该?选\s*([{options}])',
-        rf'答案选项为?\s*：\s*([{options}])',
-        rf'答案选项为?\s+\(?\*?\*?([{options}])\*?\*?\)?',
-        rf'答案选项是?\s*:\s*([{options}])',
-        rf'答案为\s*([{options}])',
-        rf'答案选\s*([{options}])',
-        rf'选择?\s*([{options}])',
-        rf'故选?\s*([{options}])'
-        rf'只有选?项?\s?([{options}])\s?是?对',
-        rf'只有选?项?\s?([{options}])\s?是?错',
-        rf'只有选?项?\s?([{options}])\s?不?正确',
-        rf'只有选?项?\s?([{options}])\s?错误',
-        rf'说法不?对选?项?的?是\s?([{options}])',
-        rf'说法不?正确选?项?的?是\s?([{options}])',
-        rf'说法错误选?项?的?是\s?([{options}])',
-        rf'([{options}])\s?是正确的',
-        rf'([{options}])\s?是正确答案',
-        rf'选项\s?([{options}])\s?正确',
-        rf'所以答\s?([{options}])',
-        rf'所以\s?([{options}][.。$]?$)',
-        rf'所有\s?([{options}][.。$]?$)',
-        rf'[\s，：:,]([{options}])[。，,\.]?$',
-        rf'[\s，,：:][故即]([{options}])[。\.]?$',
-        rf'[\s，,：:]因此([{options}])[。\.]?$',
-        rf'[是为。]\s?([{options}])[。\.]?$',
-        rf'因此\s?([{options}])[。\.]?$',
-        rf'显然\s?([{options}])[。\.]?$',
+        # --- 1. 结论前缀匹配 (包含各类括号、加粗、冒号) ---
+        rf'(?:^|\n)[\s\*#]*(?:正确|标准)?答案[\s\*]*[:：][\s\*]*[\(（]?[\s\*]*([{options}])[\s\*]*[\)）]?',
+        rf'(?:^|\n)[\s\*#]*答案选[\s\*]*[:：]?[\s\*]*[\(（]?[\s\*]*([{options}])[\s\*]*[\)）]?',
+        rf'(?:^|\n)选项[\s\*]*[\(（]?[\s\*]*([{options}])[\s\*]*[\)）]?[\s\*]*正确',
+        rf'(?:^|\n)[✅✔✓][\s\*]*(?:正确)?答案[\s\*]*[:：]?[\s\*]*[\(（]?[\s\*]*([{options}])[\s\*]*[\)）]?',
+        rf'(?:^|\n)正确答案是选项[\s\*]*[\(（]?[\s\*]*([{options}])[\s\*]*[\)）]?',
+        rf'(?:^|\n)最终答案[\s\*]*[:：][\s\*]*[\(（]?[\s\*]*([{options}])[\s\*]*[\)）]?',
+        rf'(?:^|\n)[\s\*#]*答案[\s\*]*[:：][\s\*]*[\(（]?[\s\*]*([{options}])[\s\*]*[\)）]?(?=[\.\s]|$)',
+
+        # --- 2. 句式推导匹配 (兼容是/为/选项) ---
+        # 匹配： "答案是A", "答案应该是(B)", "答案为 C"
+        rf'答案(?:选|应该?选|为|应该?是)?[\s\*]*[:：]?[\s\*]*[\(（]?[\s\*]*([{options}])[\s\*]*[\)）]?',
+        rf'答案选项(?:应该)?[是为][\s\*]*[:：]?[\s\*]*[\(（]?[\s\*]*([{options}])[\s\*]*[\)）]?',
+        rf'(?:^|\n)[\s\*#]*[\(（]?[\s\*]*([{options}])[\s\*]*[\)）]?[\s\*]*是正确答案',
+        rf'正确的?(?:选项)?(?:是|为)[\s\*]*[:：]?[\s\*]*[\(（]?[\s\*]*([{options}])[\s\*]*[\)）]?',
+
+
+        # --- 3. 英文规则匹配 ---
+        rf'(?i)Answer[\s\*]*[:：]?[\s\*]*[\(（]?[\s\*]*([{options}])[\s\*]*[\)）]?',
+        rf'(?i)The answer is(?: option)?:?[\s\*]*[\(（]?[\s\*]*([{options}])[\s\*]*[\)）]?',
+        rf'(?i)The correct answer is(?: option)?:?[\s\*]*[\(（]?[\s\*]*([{options}])[\s\*]*[\)）]?',
+        rf'(?i)The answer to the question is:?[\s\*]*[\(（]?[\s\*]*([{options}])[\s\*]*[\)）]?', 
+
+        # --- 4. LaTeX 格式 ---
+        rf'\\boxed\s*\{{\s*(?:\\text\s*\{{)?[\s\*]*([{options}])[\s\*]*\}}?\s*\}}'
+        rf'(?i)The (?:correct )?answer(?: option)? is:?[^.。,\n]*?\\boxed\s*\{{[\s\\]*(?:\\text\s*\{{)?[\s\*]*([{options}])[\s\*]*\}}?[\s\*]*\}}',
+        rf'\\boxed\s*\u007B\s*(?:\\text\s*\u007B)?[\s\*]*([{options}])(?:[\s\.。:：,\)）\u007D]|$)',
+        rf'(?i)The (?:correct )?answer(?: option)? is:?[^.。,\n]*?\\boxed\s*\u007B\s*(?:\\text\s*\u007B)?[\s\*]*([{options}])(?:[\s\.。:：,\)）\u007D]|$)',
+        
+        # --- 5. 语境词结尾兜底 ---
+        rf'(?:所以答|所以|因此|因此选|显然)[\s\*]*[\(（]?[\s\*]*([{options}])[\s\*]*[\)）]?(?:[。.]|$)',
+        rf'[\s，,：:][故即][\s\*]*[\(（]?[\s\*]*([{options}])[\s\*]*[\)）]?(?:[。.]|$)',
+        rf'(?:^|[\s，:：])故选?[\s\*]*[\(（]?[\s\*]*([{options}])[\s\*]*[\)）]?',
+
+        # --- 6. 强兜底 (强制带括号) ---
+        rf'(?:^|\n)\s*\*{2,}\s*[\(（]?\s*\**([{options}])\**\s*[\)）]?\s*\*{2,}\s*(?:$|\n)',
+        rf'[\s，：:,][\(（][\s\*]*([{options}])[\s\*]*[\)）][。，,\.]?$',
+        rf'[是为。][\s\*]*[\(（][\s\*]*([{options}])[\s\*]*[\)）][。\.]?$'
         rf'答案是\s?(\S+)(?:。|$)',
-        rf'[^a-zA-Z]*答案[是为]\s*[:：]?\s*\*{{0,2}}[✅✔✓]?\s*\*{{0,2}}([{options}])',
-        rf'答案应该是\s?(\S+)(?:。|$)',
-        rf'答案为\s?(\S+)(?:。|$)',
-        rf'[Aa]nswer\s*[:：]?\s*\*?\*?([{options}])', 
-        rf'(?i)ANSWER\s*:\s*([{options}])',
-        rf'[Tt]he answer is:?\s+\(?([{options}])\)?',
-        rf'[Tt]he answer is:?\s+\(?\*?\*?([{options}])\*?\*?\)?',
-        rf'[Tt]he answer is option:?\s+\(?([{options}])\)?',
-        rf'[Tt]he correct answer is:?\s+\(?([{options}])\)?',
-        rf'[Tt]he correct answer is option:?\s+\(?([{options}])\)?',
-        rf'[Tt]he correct answer is:?.*?boxed{{([{options}])}}',
-        rf'[Tt]he correct option is:?.*?boxed{{([{options}])}}',
-        rf'[Tt]he correct answer option is:?.*?boxed{{([{options}])}}',
-        rf'[Tt]he answer to the question is:?\s+\(?([{options}])\)?',
-        rf'^选项\s?([{options}])',
-        rf'^([{options}])\s?选?项',
-        rf'(\s|^)[{options}][\s。，,：:\.$]',
-        rf'1.\s?(.*?)$',
-        rf'1.\s?([{options}])[.。$]?$',
-        # 匹配 Markdown 加粗格式：**C** 或 **C. 描述**
-        rf'答案选?\s*\*+\s?([{options}])\s?\*+',
-        
-        # 匹配 LaTeX 的 \boxed 格式，支持 \text{C} 或直接 {C}
-        rf'\\boxed\s?\{{\s*(?:\\text\{{)?\s?([{options}])\s*\}}?\s*\}}',
-        
-        # 匹配带图标的格式，如 ✅ 正确答案：C
-        rf'[✅✔✓]\s*正确答案\s*[:：]\s*\*?\*?([{options}])',
-        
-        # 匹配“选项C，即...” 这种格式
-        rf'正确答案是选项\s?([{options}])',
-        
-        # 匹配“最终答案：”后接换行或空格的 LaTeX 或纯文本
         rf'最终答案\s*[:：]\s*.*?([{options}])',
         
-        # 匹配“答案：D. 不必经...” 这种后面带长文本描述的情况
-        # 注意：这里只捕获选项字母本身
-        rf'^\*\*?答案\*\*?\s*[:：]\s*([{options}])(?=[\.\s])',
-        # 针对 "The correct answer is (C)" 及其前后带有加粗、波浪号、句号等格式
-        rf'[Tt]he correct answer is\s*\(\s*([{options}])\s*\)',
-        # 针对 "Final Answer:" 及其带有 ✅、换行、加粗、以及后续公式的格式
-        rf'(?i)Final\s*Answer\s*[:：]\s*[\*\s]*\(\s*([{options}])\s*\)',
 
     ]
     cushion_patterns = [

@@ -1,143 +1,154 @@
-# 自动化模型评测操作手册 (Docker 私域部署版)
+# Score Platform 部署手册
 
 ## 1. 概述
 
-本指南介绍如何将评测项目的**运行环境**打包为 Docker 镜像，并在无公网连接的私域环境中进行离线、全自动化的多任务评测。
+本项目由三个 Docker 服务组成：
+
+| 服务 | 镜像 | Dockerfile | 说明 |
+|------|------|-----------|------|
+| score-frontend | score-frontend:latest | deploy_docker/frontend/Dockerfile | React + nginx 前端 |
+| score-backend  | score-backend:latest  | deploy_docker/backend/Dockerfile  | FastAPI 后端 + 任务调度 |
+| benchmark-eval | benchmark-eval:latest | deploy_docker/ais_bench/Dockerfile | ais_bench 评测容器，由后端动态启动 |
 
 **环境与代码分离**是本方案的核心设计：
 
 | 内容 | 载体 | 更新方式 |
 |------|------|---------|
 | Python 运行时、pip 依赖、ais_bench 框架 | Docker 镜像 | 依赖变更时重新构建 |
-| `eval_entry.py`、`scripts/` 业务脚本 | 宿主机 `code/` 目录（`-v` 挂载） | 直接在服务器上编辑，无需重建镜像 |
+| `eval_entry.py`、`scripts/` 业务脚本 | 宿主机 `workspace/code/` 目录（`-v` 挂载） | 直接在服务器上编辑，无需重建镜像 |
 | `data/`（评测数据）、`outputs/`（结果） | 宿主机挂载目录 | 随时替换 |
-| `.env`（API 密钥） | 宿主机（不进入镜像） | 随时修改 |
 
 ---
 
-## 2. 在有网环境（Mac / 打包机）构建并导出离线部署包
+## 2. 本机开发（本地启动）
 
-由于私域网络隔离，**必须在有网的机器上完成镜像构建，并将包含了所有业务代码、数据集以及评测依赖的镜像打包导出**。
-
-我们为您准备了**一键打包脚本**。
-
-在项目根目录（包含 `Dockerfile` 的目录）执行：
+一键构建所有镜像并启动全部服务：
 
 ```bash
-bash scripts/package_deploy.sh
+bash scripts/deploy_scripts/start-local.sh        # 前台模式
+bash scripts/deploy_scripts/start-local.sh -d     # 后台模式
 ```
 
-该脚本将自动执行以下完整流水线：
+脚本会自动完成：
+1. 创建 `workspace/`、`backend/backend_data/` 等必要目录
+2. 将 `eval_entry.py`、`scripts/`、`ais_bench/` 等软链到 `workspace/code/`
+3. 构建 `benchmark-eval:latest` 镜像（已存在则跳过）
+4. 宿主机 `npm run build` 构建前端 dist
+5. `docker compose up --build` 启动 score-frontend + score-backend
 
-1. 校验 `.env`、`data/` 等必要文件
-2. 执行 `docker build` 自动构建最新版的评测镜像
-3. 执行 `docker save` 导出离线镜像包
-4. 将配套脚本、数据和离线镜像一起打包成 `eval_workspace_xxxxxxxx.tar.gz` 放入 `outputs/`
+启动后访问（整个应用挂载于 `/chuilei/eval/` 前缀，裸 `/` 会 301 跳转过去）：
+- 前端：`http://localhost/chuilei/eval/`
+- 后端 API：经前端 nginx 反代为 `/chuilei/eval/api/v1/...`（后端自身 `/api/v1`，前缀由 nginx 剥离）
 
-完成后，将最终生成的 `tar.gz` 压缩包传输到脱机的私域服务器。
+停止服务：
+```bash
+docker compose -f deploy_docker/docker-compose.yml down
+```
 
 ---
 
 ## 3. 私域网络部署
 
-### 3.1 导入镜像
+私域网络无公网连接，需在有网的机器上构建并导出镜像，再传输到服务器。
 
-在私域服务器上执行：
+> **★架构前提**：华为 910C 为 `aarch64`(ARM64)。镜像 `docker save` 后**不能跨架构 load**，
+> 因此**必须在 ARM64 机器上打包**（Apple Silicon Mac 即 arm64，与 910C 匹配，可直接打）。
+> 切勿在 Intel/x86 机器上打包，否则 910C 导入后无法启动。
+
+> **平台只是 HTTP 客户端，不吃 NPU**。被测模型、打分模型是独立的推理服务（如 vLLM-ascend），
+> 由别处单独拉起并暴露 `IP:PORT`；910C 网络能访问到即可。其 IP/端口/密钥**不写 .env**，
+> 部署后在 Web 界面「评测模型」「打分模型」中录入，由后端按需动态注入算子容器。
+
+### 3.1 场景一：全量部署（前端 + 后端 + ais_bench）
+
+在有网的 ARM64 机器（如开发 Mac）上执行一键打包：
 
 ```bash
+bash scripts/deploy_scripts/prod_all.sh
+```
+
+脚本自动完成：
+1. 宿主机 `npm run build` 构建最新前端 dist（含 `/chuilei/eval/` 前缀）
+2. 构建三个镜像：`benchmark-eval`、`score-backend`、`score-frontend`
+3. 导出为单一离线包 `score-platform-images.tar.gz`
+4. 自带 `code/` 业务脚本（`eval_entry.py`/`eval_judge.py`/`scripts/`/`ais_bench/`）——
+   后端起算子容器时 `-v` 挂载它们，缺失会导致评测一启动就失败
+5. 生成生产 `docker-compose.prod.yml`（后端端口收口，仅经 nginx 暴露）、
+   `.env.example`、一键铺底脚本 `init_workspace.sh`
+6. 打包为 `outputs/score_platform_<timestamp>.tar.gz`
+
+**在私域服务器上部署：**
+
+```bash
+# 1. 传输 + 解压
+scp outputs/score_platform_<timestamp>.tar.gz user@server:/opt/
+cd /opt && tar -xzf score_platform_<timestamp>.tar.gz && cd score_platform
+
+# 2. 导入三个镜像
+docker load < score-platform-images.tar.gz
+
+# 3. 配置
+cp .env.example .env
+vi .env   # 填写 WORKSPACE_DIR、BACKEND_DATA_DIR、管理员密码
+
+# 4. 一键建目录 + 铺 code（读取 .env）
+bash init_workspace.sh
+
+# 5. 启动服务
+docker-compose -f docker-compose.prod.yml --env-file .env up -d
+```
+
+访问（整个应用挂载于 `/chuilei/eval/` 前缀，裸 `/` 会 301 跳转过去）：
+- 前端：`http://<服务器IP>/chuilei/eval/`
+- 后端：经 nginx 反代，无需也不建议直接对外暴露 8080；如需调试，
+  在 `docker-compose.prod.yml` 中临时取消 `score-backend` 的 `ports` 注释
+
+> **注意**：
+> - `benchmark-eval` 由后端通过 `docker run` 动态启动，无需在 compose 声明，但镜像必须已 load。
+> - `WORKSPACE_DIR` 宿主机与容器内必须同路径，否则算子容器 `-v` 挂载失败。
+> - 全部平台状态在 `BACKEND_DATA_DIR/eval_backend.db`，备份只需备份它。
+
+### 3.2 场景二：仅部署 ais_bench 评测容器（无前后端）
+
+适用于只需要裸跑评测任务、不需要 Web 界面的场景。
+
+```bash
+bash scripts/deploy_scripts/package_deploy.sh
+```
+
+脚本自动完成：
+1. 构建 `benchmark-eval:latest` 镜像
+2. 导出为 `benchmark-eval.tar.gz`
+3. 打包业务脚本（`eval_entry.py`、`eval_judge.py`、`scripts/`）、数据集、启动脚本
+4. 打包为 `outputs/eval_workspace_<timestamp>.tar.gz`
+
+**在私域服务器上部署：**
+
+```bash
+# 1. 传输并解压
+scp outputs/eval_workspace_<timestamp>.tar.gz user@server:/opt/
+cd /opt && tar -xzf eval_workspace_<timestamp>.tar.gz
+cd eval_workspace
+
+# 2. 导入镜像
 docker load < benchmark-eval.tar.gz
-```
 
-### 3.2 创建工作目录结构
+# 3. 配置
+vi .env  # 填写 API 密钥、模型 IP/端口
 
-规划一个专门的评测工作目录（如 `/opt/eval_workspace/`），按如下结构准备文件：
-
-```text
-/opt/eval_workspace/
-├── .env                  # API 密钥与基础配置（必须存在）
-├── data/                 # 统一数据挂载根目录
-│   ├── custom_task/      # 自定义任务数据
-│   │   ├── task_34.jsonl
-│   │   └── task_36.jsonl
-│   ├── telequad/         # 通用数据集目录
-│   └── mmlu_redux/       # 另一个通用数据集
-├── code/                 # 业务脚本（直接在服务器上维护）
-│   ├── eval_entry.py     # 主评测入口脚本
-│   └── scripts/          # 辅助脚本目录
-├── outputs/              # (自动创建) 按 task-id 分类的评测结果
-└── logs/                 # (自动创建) 后台运行日志
-```
-
-将 `eval_entry.py` 和 `scripts/` 从开发机复制到服务器：
-
-```bash
-scp eval_entry.py user@server:/opt/eval_workspace/code/
-scp -r scripts/ user@server:/opt/eval_workspace/code/
-```
-
-### 3.3 配置 `.env` 文件
-
-```env
-# ====== 私域 MaaS 服务配置 ======
-MAAS_API_KEY=your-private-api-key
-MAAS_HOST_IP=10.0.0.1
-MAAS_HOST_PORT=30175
-MAAS_URL=/v1/chat/completions
-
-# ====== 本地部署模型配置 (local_qwen) ======
-LOCAL_MODEL_NAME=qwen3-14b
-LOCAL_HOST_IP=188.109.35.159
-LOCAL_HOST_PORT=8113
-LOCAL_CONCURRENCY=100    # 控制 HTTP 请求并发数量
-
-# ====== 默认全局控制 ======
-EVAL_MODEL_NAME=Qwen3-32B
-EVAL_CONCURRENCY=5
-EVAL_VERBOSE=false
+# 4. 启动评测
+bash run_mixed_benchmark.sh --workspace $(pwd)
 ```
 
 ---
 
-## 4. 执行评测
+## 4. 执行评测（ais_bench 容器内）
 
-### 4.1 使用 `run_mixed_benchmark.sh` 一键启动（推荐）
+### 4.1 通过 Web 平台触发（推荐）
 
-将 `run_mixed_benchmark.sh` 放到服务器上（任意位置），执行：
+通过 Score Platform 前端页面提交评测任务，后端自动调度 `benchmark-eval` 容器执行。
 
-```bash
-bash run_mixed_benchmark.sh --workspace /opt/eval_workspace
-```
-
-脚本会自动以 **nohup 后台模式**启动，终端立即返回，SSH 断开后评测持续运行：
-
-```text
-🔄 以后台模式启动（SSH 断开后进程将持续运行）
-📂 工作目录: /opt/eval_workspace
-💻 代码目录: /opt/eval_workspace/code
-📄 日志文件: /opt/eval_workspace/logs/mixed_eval_20260305_160000.log
-👀 实时查看日志: tail -f /opt/eval_workspace/logs/mixed_eval_20260305_160000.log
-🛑 终止任务: docker stop $(docker ps -q --filter ancestor=benchmark-eval:latest)
----------------------------------------------------
-✅ 后台 PID: 12345，安全断开 SSH 即可。
-```
-
-**脚本参数说明：**
-
-| 参数 | 默认值 | 说明 |
-|------|--------|------|
-| `--workspace` | `/opt/eval_workspace` | 评测工作目录 |
-| `--code-dir` | `<workspace>/code` | 业务代码目录，含 `eval_entry.py` 和 `scripts/` |
-| `--image-tag` | `benchmark-eval:latest` | Docker 镜像 tag |
-| `--image-tar` | （无） | 镜像离线包路径，镜像不存在时自动 load |
-
-**重连后查看进度：**
-
-```bash
-tail -f /opt/eval_workspace/logs/mixed_eval_*.log
-docker ps   # 确认容器仍在运行
-```
-
-### 4.2 直接调用 `docker run`（临时调试用）
+### 4.2 直接调用 `docker run`（调试用）
 
 ```bash
 docker run --rm \
@@ -155,15 +166,15 @@ docker run --rm \
         --model-config local_qwen
 ```
 
-> **注意**：直接 `docker run` 为前台模式，SSH 断开后进程会终止。如需后台运行，请使用 `run_mixed_benchmark.sh`。
+> 直接 `docker run` 为前台模式，SSH 断开后进程会终止。后台运行请使用 `run_mixed_benchmark.sh`。
 
 ---
 
 ## 5. 在服务器上修改代码（无需重建镜像）
 
-这是本方案的核心优势。修改业务逻辑时，直接在服务器上编辑对应文件，重新执行脚本即可生效。
+这是本方案的核心优势，业务脚本通过 `-v` 挂载，修改后立即生效。
 
-**修改 `eval_entry.py`：**
+**修改推理/评测逻辑：**
 
 ```bash
 vi /opt/eval_workspace/code/eval_entry.py
@@ -171,68 +182,44 @@ vi /opt/eval_workspace/code/eval_entry.py
 scp eval_entry.py user@server:/opt/eval_workspace/code/eval_entry.py
 ```
 
-**修改 `ais_bench` 框架内部逻辑：**
-
-`ais_bench` 以 editable 模式安装在镜像内的 `/app/ais_bench/`，可通过额外挂载宿主机目录来覆盖它：
+**修改 ais_bench 框架内部逻辑：**
 
 ```bash
-# 先将 ais_bench 源码复制到服务器
+# 将 ais_bench 源码复制到服务器
 scp -r ais_bench/ user@server:/opt/eval_workspace/code/ais_bench/
 
-# 在 docker run 中追加挂载（或修改 run_mixed_benchmark.sh 中的 docker run 命令）
+# 在 docker run 中追加挂载
 -v /opt/eval_workspace/code/ais_bench:/app/ais_bench
 ```
 
-**什么时候需要重建镜像：**
-
-- 新增或升级 pip 依赖（修改 `requirements/` 文件后）
+**何时需要重建镜像：**
+- 新增或升级 pip 依赖（修改 `requirements/` 文件后重新打包）
 
 ---
 
-## 6. 报告解析
+## 6. 查看结果
 
-执行完成后，在 `/opt/eval_workspace/outputs/<task-id>/` 下生成：
+评测完成后，在 workspace 的 `outputs/<task-id>/` 下生成：
 
-1. **`report.md`**：综合战报，便于人工浏览。
-2. **`report.json`**：结构化报告，适合 CI/CD 自动解析。
-3. **`details/`**：单条推理结果与评分明细，按时间戳子目录组织。
+1. **`report.md`**：综合战报，便于人工浏览
+2. **`report.json`**：结构化报告，适合自动解析
+3. **`details/`**：单条推理结果与评分明细
 
-**`report.json` 示例：**
-
-```json
-{
-  "task_id": "pipeline_round_1",
-  "model": "qwen3-14b",
-  "timestamp": "2026-03-04 15:30:00",
-  "avg_accuracy": 78.33,
-  "summary": {
-    "custom": { "count": 2, "tasks_with_accuracy": 2, "total_duration_sec": 45.9, "avg_accuracy": 85.0 },
-    "generic": { "count": 2, "tasks_with_accuracy": 2, "total_duration_sec": 120.1, "avg_accuracy": 75.0 }
-  },
-  "tasks": [
-    {
-      "task": "task_34",
-      "type": "custom",
-      "suite": "task_34_suite",
-      "status": "success",
-      "accuracy": 90.0,
-      "num_samples": 1000,
-      "duration_sec": 15.2,
-      "returncode": 0,
-      "details_dir": "details/20260304_153000"
-    }
-  ]
-}
-```
-
-**在流水线中解析结果：**
+重连后查看进度：
 
 ```bash
-python eval_entry.py ...
-if [ $? -eq 0 ]; then
-    SCORE=$(jq '.avg_accuracy' /opt/eval_workspace/outputs/pipeline_round_1/report.json)
-    if (( $(echo "$SCORE >= 80.0" | bc -l) )); then
-        echo "模型达标！"
-    fi
-fi
+tail -f /opt/eval_workspace/logs/mixed_eval_*.log
+docker ps   # 确认容器仍在运行
 ```
+
+---
+
+## 7. 脚本索引
+
+| 脚本 | 用途 |
+|------|------|
+| `scripts/deploy_scripts/start-local.sh` | 本机开发一键启动 |
+| `scripts/deploy_scripts/prod_all.sh` | 全量打包（前端+后端+ais_bench）用于私域部署 |
+| `scripts/deploy_scripts/package_deploy.sh` | 仅打包 ais_bench 评测容器 |
+| `run_mixed_benchmark.sh` | 私域服务器上启动推理+评测流程 |
+| `run_eval_container.sh` | 启动常驻 ais_bench 容器（手动调试） |

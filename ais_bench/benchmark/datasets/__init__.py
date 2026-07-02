@@ -60,3 +60,5 @@ from ais_bench.benchmark.datasets.mmstar import * # noqa: F401, F403
 from ais_bench.benchmark.datasets.dapo_math import * # noqa: F401, F403
 from ais_bench.benchmark.datasets.identity_exploration import * # noqa: F401, F403
 from ais_bench.benchmark.datasets.exam_dataset import * # noqa: F401, F403
+from ais_bench.benchmark.datasets.alarm_data import * # noqa: F401, F403
+from ais_bench.benchmark.datasets.expert_qa import *

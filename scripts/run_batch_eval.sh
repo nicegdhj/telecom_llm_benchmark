@@ -33,13 +33,16 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 # ── 默认参数 ─────────────────────────────────────────────────────────────────
 FMT_DIR="fmt"
-EVAL_VERSION="v_test"
-CONCURRENCY=60
+EVAL_VERSION="eval_v4"
+CONCURRENCY=10
 
 # livecodebench_0_shot_chat_v6
+#EVAL_TASKS="task_1_suite task_34_suite task_36_suite task_43_suite task_44_suite task_60_suite"
 
-EVAL_TASKS="identity_gen_0_shot tele_exam_gen_0_shot_str telequad_gen_0_shot teledata_gen_0_shot"
-#EVAL_TASKS="task_1_suite task_34_suite task_36_suite task_43_suite task_44_suite task_60_suite mmlu_redux_gen_5_shot_str ceval_gen_0_shot_str gpqa_gen_0_shot_str bbh_gen_3_shot_cot_chat BFCL_gen_simple ifeval_0_shot_gen_str math500_gen_0_shot_cot_chat_prompt aime2025_gen_0_shot_chat_prompt humaneval_gen_0_shot telemath_gen_0_cot_shot teleqna_gen_0_shot tspec_gen_0_shot tele_exam_gen_0_shot"
+#EVAL_TASKS="teledata_gen_0_shot telequad_gen_0_shot"
+EVAL_TASKS="exam_gen_0_shot"
+#EVAL_TASKS="opseval_gen_0_shot exam_gen_0_shot"
+#EVAL_TASKS="task_1_suite task_34_suite task_36_suite task_43_suite task_44_suite task_60_suite mmlu_redux_gen_5_shot_str ceval_gen_0_shot_str gpqa_gen_0_shot_str bbh_gen_3_shot_cot_chat BFCL_gen_simple ifeval_0_shot_gen_str math500_gen_0_shot_cot_chat_prompt aime2025_gen_0_shot_chat_prompt humaneval_gen_0_shot telemath_gen_0_cot_shot teleqna_gen_0_shot tspec_gen_0_shot tele_exam_gen_0_shot identity_gen_0_shot tele_exam_gen_0_shot_str telequad_gen_0_shot teledata_gen_0_shot exam_gen_0_shot opseval_gen_0_shot"
 DRY_RUN=false
 MODE="local"           # local | docker
 WORKSPACE=""           # Docker 模式下的工作目录
@@ -48,6 +51,7 @@ IMAGE_TAG="benchmark-eval:latest"
 ENV_FILE=""
 DATA_DIR=""
 MODEL_CONFIG="local_qwen"
+TASK_TIMEOUT=7200
 SKIP_MIGRATE=false
 
 # ── 参数解析 ──────────────────────────────────────────────────────────────────
@@ -64,6 +68,7 @@ while [[ $# -gt 0 ]]; do
         --code-dir)      CODE_DIR="$2";      shift 2 ;;
         --image-tag)     IMAGE_TAG="$2";     shift 2 ;;
         --model-config)  MODEL_CONFIG="$2";  shift 2 ;;
+        --task-timeout)  TASK_TIMEOUT="$2";  shift 2 ;;
         --skip-migrate)  SKIP_MIGRATE=true;  shift 1 ;;
         *) echo "❌ 未知参数: $1"; exit 1 ;;
     esac
@@ -204,6 +209,7 @@ for name in "${candidates[@]}"; do
                 --output-dir /data/fmt \
                 --eval-version ${EVAL_VERSION} \
                 --score-worker-concurrency ${CONCURRENCY} \
+                --task-timeout ${TASK_TIMEOUT} \
                 ${eval_tasks_args}"
     else
         cmd="python ${PROJECT_ROOT}/eval_judge.py \
@@ -211,6 +217,7 @@ for name in "${candidates[@]}"; do
             --output-dir ${FMT_DIR} \
             --eval-version ${EVAL_VERSION} \
             --score-worker-concurrency ${CONCURRENCY} \
+            --task-timeout ${TASK_TIMEOUT} \
             ${eval_tasks_args}"
     fi
 

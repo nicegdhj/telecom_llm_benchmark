@@ -43,21 +43,21 @@ class VLLMCustomAPIChat(BaseAPIModel):
     is_chat_api: bool = True
 
     def __init__(
-        self,
-        path: str = "",
-        model: str = "",
-        stream: bool = False,
-        max_out_len: int = 4096,
-        retry: int = 2,
-        api_key: str = "",
-        host_ip: str = "localhost",
-        host_port: int = 8080,
-        url: str = "",
-        trust_remote_code: bool = False,
-        generation_kwargs: Optional[Dict] = None,
-        meta_template: Optional[Dict] = None,
-        enable_ssl: bool = False,
-        verbose: bool = False,
+            self,
+            path: str = "",
+            model: str = "",
+            stream: bool = False,
+            max_out_len: int = 4096,
+            retry: int = 2,
+            api_key: str = "",
+            host_ip: str = "localhost",
+            host_port: int = 8080,
+            url: str = "",
+            trust_remote_code: bool = False,
+            generation_kwargs: Optional[Dict] = None,
+            meta_template: Optional[Dict] = None,
+            enable_ssl: bool = False,
+            verbose: bool = False,
     ):
         super().__init__(
             path=path,
@@ -93,13 +93,16 @@ class VLLMCustomAPIChat(BaseAPIModel):
         self.session = None
 
     def _get_url(self) -> str:
-        endpoint = "v1/chat/completions"
-        url = urllib.parse.urljoin(self.base_url, endpoint)
-        self.logger.debug(f"Request url: {url}")
-        return url
+        # endpoint = "v1/chat/completions"
+        # if self.url.endswith(endpoint):
+        #     url = self.url
+        # else:
+        #     url = urllib.parse.urljoin(self.base_url, endpoint)
+        #     self.logger.debug(f"Request url: {url}")
+        return self.url
 
     async def get_request_body(
-        self, input: PromptType, max_out_len: int, output: RequestOutput, **args
+            self, input: PromptType, max_out_len: int, output: RequestOutput, **args
     ):
         if max_out_len <= 0:
             return ""
@@ -112,7 +115,7 @@ class VLLMCustomAPIChat(BaseAPIModel):
                 # Use hash table (dict) driven approach for role mapping
                 role = item.get("role", "")
                 msg["role"] = ROLE_MAP.get(role, role)  # Use original role if not in map
-                for key, value in item.items(): # copy all other items to msg
+                for key, value in item.items():  # copy all other items to msg
                     if key not in ["role", "prompt"]:
                         msg[key] = value
                 messages.append(msg)
@@ -147,22 +150,23 @@ class VLLMCustomAPIChat(BaseAPIModel):
 
     async def parse_text_response(self, json_content, output):
         for item in json_content.get("choices", []):
-            if content:=item["message"].get("content"):
+            if content := item["message"].get("content"):
                 output.content += content
-            if reasoning_content:=item["message"].get("reasoning_content"):
+            if reasoning_content := item["message"].get("reasoning_content"):
                 output.reasoning_content += reasoning_content
         await self._parse_usage(json_content, output)
         output.update_extra_details_data_from_text_response(json_content)
         self.logger.debug(f"Output content: {output.content}")
         self.logger.debug(f"Output reasoning content: {output.reasoning_content}")
 
-    async def get_ppl_request_body(self, input_data:PromptType, max_out_len: int, output: PPLRequestOutput, **args):
+    async def get_ppl_request_body(self, input_data: PromptType, max_out_len: int, output: PPLRequestOutput, **args):
         request_body = await self.get_request_body(input_data, max_out_len, output, **args)
         request_body.update({"prompt_logprobs": 0})
         return request_body
 
     def get_prompt_logprobs(self, data: dict):
         return data.get("prompt_logprobs", [])
+
 
 @MODELS.register_module()
 class VLLMFunctionCallAPIChat(VLLMCustomAPIChat):
@@ -172,13 +176,16 @@ class VLLMFunctionCallAPIChat(VLLMCustomAPIChat):
         super().__init__(*args, **kwargs)
         self.logger.warning("VLLMFunctionCallAPIChat is deprecated, please use VLLMCustomAPIChat instead.")
 
+
 @MODELS.register_module()
 class VLLMCustomAPIChatStream(VLLMCustomAPIChat):
 
     def __init__(self, *args, **kwargs):
         kwargs['stream'] = True
         super().__init__(*args, **kwargs)
-        self.logger.warning("VLLMCustomAPIChatStream is deprecated, please use VLLMCustomAPIChat with stream=True instead.")
+        self.logger.warning(
+            "VLLMCustomAPIChatStream is deprecated, please use VLLMCustomAPIChat with stream=True instead.")
+
 
 @MODELS.register_module()
 class VllmMultiturnAPIChatStream(VLLMCustomAPIChat):
@@ -187,4 +194,5 @@ class VllmMultiturnAPIChatStream(VLLMCustomAPIChat):
         kwargs.pop("custom_client", None)
         kwargs['stream'] = True
         super().__init__(*args, **kwargs)
-        self.logger.warning("VllmMultiturnAPIChatStream is deprecated, please use VLLMCustomAPIChat with stream=True instead.")
+        self.logger.warning(
+            "VllmMultiturnAPIChatStream is deprecated, please use VLLMCustomAPIChat with stream=True instead.")
