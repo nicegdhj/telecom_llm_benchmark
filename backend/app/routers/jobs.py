@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
+import subprocess
 
 from backend.app.config import get_settings
 from backend.app.deps import db_session, require_role
@@ -151,6 +152,23 @@ def get_quality(jid: int,
     return JobQualityOut(available=True, **stats)
 
 
+def _cancel_one(db: Session, j: Job) -> bool:
+    """取消单个 job；返回 True 表示实际取消，False 表示因状态不可取消被跳过。"""
+    if j.status not in ("pending", "running"):
+        return False
+    if j.pid:
+        try:
+            subprocess.run(["docker", "kill", f"eval-{j.id}-infer"],
+                           capture_output=True)
+            subprocess.run(["docker", "kill", f"eval-{j.id}-judge"],
+                           capture_output=True)
+        except Exception:
+            pass
+    j.status = "cancelled"
+    j.error_msg = "Cancelled by user"
+    return True
+
+
 @router.post("/{jid}/cancel")
 def cancel(jid: int,
            db: Session = Depends(db_session),
@@ -158,18 +176,37 @@ def cancel(jid: int,
     j = db.get(Job, jid)
     if not j:
         raise HTTPException(status_code=404, detail=f"Job {jid} not found")
-    if j.status not in ("pending", "running"):
+    if not _cancel_one(db, j):
         raise HTTPException(400, f"Cannot cancel job with status {j.status}")
-    import subprocess
-    if j.pid:
-        try:
-            subprocess.run(["docker", "kill", f"eval-{jid}-infer"],
-                           capture_output=True)
-            subprocess.run(["docker", "kill", f"eval-{jid}-judge"],
-                           capture_output=True)
-        except Exception:
-            pass
-    j.status = "cancelled"
-    j.error_msg = "Cancelled by user"
     db.commit()
     return {"status": "cancelled", "job_id": jid}
+
+
+@router.post("/batch-cancel")
+def batch_cancel(data: dict,
+                 db: Session = Depends(db_session),
+                 _: User = Depends(require_role("operator", "admin"))):
+    """批量取消任务。只处理存在且状态为 pending/running 的 job，其余跳过。
+
+    请求体：{"ids": [1, 2, 3]}
+    返回：{"cancelled": [1, 2], "skipped": [3]}
+    """
+    ids = data.get("ids", [])
+    if not isinstance(ids, list):
+        raise HTTPException(400, "ids must be a list")
+    cancelled = []
+    skipped = []
+    for jid in ids:
+        if not isinstance(jid, int):
+            skipped.append(jid)
+            continue
+        j = db.get(Job, jid)
+        if j is None:
+            skipped.append(jid)
+            continue
+        if _cancel_one(db, j):
+            cancelled.append(jid)
+        else:
+            skipped.append(jid)
+    db.commit()
+    return {"cancelled": cancelled, "skipped": skipped}

@@ -117,6 +117,39 @@ def test_cancel_already_done_job(client):
     assert r.status_code == 400
 
 
+def test_batch_cancel_jobs(client):
+    """批量取消：pending/running 被取消，已结束任务被跳过。"""
+    bid, mid, tid = _seed(client)
+    with get_session() as s:
+        j1 = Job(type="infer", batch_id=bid, model_id=mid, task_id=tid, status="pending")
+        j2 = Job(type="infer", batch_id=bid, model_id=mid, task_id=tid, status="running", pid=12345)
+        j3 = Job(type="eval", batch_id=bid, model_id=mid, task_id=tid, status="success")
+        s.add_all([j1, j2, j3])
+        s.commit()
+        ids = [j1.id, j2.id, j3.id]
+
+    with patch("backend.app.routers.jobs.subprocess.run") as mock_run:
+        r = client.post("/api/v1/jobs/batch-cancel", json={"ids": ids})
+        assert r.status_code == 200
+        body = r.json()
+        assert set(body["cancelled"]) == {ids[0], ids[1]}
+        assert body["skipped"] == [ids[2]]
+        # running 的 job 会触发 docker kill
+        assert mock_run.call_count >= 1
+
+    with get_session() as s:
+        assert s.get(Job, ids[0]).status == "cancelled"
+        assert s.get(Job, ids[1]).status == "cancelled"
+        assert s.get(Job, ids[2]).status == "success"
+
+
+def test_batch_cancel_empty(client):
+    """批量取消空列表返回空结果。"""
+    r = client.post("/api/v1/jobs/batch-cancel", json={"ids": []})
+    assert r.status_code == 200
+    assert r.json() == {"cancelled": [], "skipped": []}
+
+
 def test_framework_log_collects_ais_bench_out(client):
     """infer job 的框架日志：定位 outputs/<otid>/details/**/logs/infer/**/*.out 并返回内容。"""
     from datetime import datetime
