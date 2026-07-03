@@ -136,6 +136,7 @@ export const api = {
     frameworkLog: (id) => request(`/jobs/${id}/framework-log`),
     quality: (id) => request(`/jobs/${id}/quality`),
     cancel: (id) => request(`/jobs/${id}/cancel`, { method: 'POST' }),
+    batchCancel: (ids) => request('/jobs/batch-cancel', { method: 'POST', body: JSON.stringify({ ids }) }),
   },
 
   predictions: {

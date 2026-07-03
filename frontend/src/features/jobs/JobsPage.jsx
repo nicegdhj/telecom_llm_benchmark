@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/api';
 import { Card, CardBody } from '../../components/ui/Card';
@@ -35,6 +35,7 @@ export function JobsPage() {
   const [logJob, setLogJob] = useState(null);
   const [logOpen, setLogOpen] = useState(false);
   const [confirmCancelId, setConfirmCancelId] = useState(null);
+  const [selectedIds, setSelectedIds] = useState([]);
 
   const { data: jobs, isLoading } = useQuery({
     queryKey: ['jobs', { status: statusFilter, batch_id: batchIdFilter }],
@@ -50,12 +51,49 @@ export function JobsPage() {
     refetchOnMount: 'always',
   });
 
+  // 筛选条件变化后清空已选，避免选中不在当前列表中的项
+  useEffect(() => {
+    setSelectedIds([]);
+  }, [statusFilter, batchIdFilter]);
+
   const cancelMut = useMutation({
     mutationFn: (id) => api.jobs.cancel(id),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['jobs'] }); setConfirmCancelId(null); },
   });
 
+  const batchCancelMut = useMutation({
+    mutationFn: (ids) => api.jobs.batchCancel(ids),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['jobs'] });
+      setSelectedIds([]);
+    },
+  });
+
   function openLog(job) { setLogJob(job); setLogOpen(true); }
+
+  const cancellableJobs = jobs?.filter((j) => CANCELLABLE.has(j.status)) || [];
+  const isAllSelected = cancellableJobs.length > 0 && cancellableJobs.every((j) => selectedIds.includes(j.id));
+
+  function toggleSelect(id) {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+  }
+
+  function toggleSelectAll() {
+    const ids = cancellableJobs.map((j) => j.id);
+    if (isAllSelected) {
+      setSelectedIds((prev) => prev.filter((id) => !ids.includes(id)));
+    } else {
+      setSelectedIds((prev) => Array.from(new Set([...prev, ...ids])));
+    }
+  }
+
+  function handleBatchCancel() {
+    if (selectedIds.length === 0) return;
+    if (!window.confirm(`确定取消已选中的 ${selectedIds.length} 条任务？运行中的任务会被强制终止。`)) return;
+    batchCancelMut.mutate(selectedIds);
+  }
 
   return (
     <div>
@@ -109,11 +147,36 @@ export function JobsPage() {
         </div>
       </div>
 
+      {/* 批量操作栏 */}
+      {selectedIds.length > 0 && (
+        <div className="mb-3 flex items-center justify-between rounded-lg border border-blue-100 bg-blue-50 px-4 py-2.5">
+          <span className="text-sm text-blue-800 font-medium">
+            已选 {selectedIds.length} 条任务
+          </span>
+          <button
+            onClick={handleBatchCancel}
+            disabled={batchCancelMut.isPending}
+            className="flex items-center gap-1.5 text-sm font-medium text-red-600 hover:text-red-700 hover:bg-red-100 px-3 py-1.5 rounded-md transition-colors disabled:opacity-50"
+          >
+            <XCircle size={14} /> 批量取消
+          </button>
+        </div>
+      )}
+
       <Card>
         <CardBody className="p-0">
           <table className="min-w-full">
             <thead>
               <tr className="border-b border-gray-100">
+                <th className="px-3 py-3 text-center">
+                  <input
+                    type="checkbox"
+                    checked={isAllSelected}
+                    disabled={cancellableJobs.length === 0}
+                    onChange={toggleSelectAll}
+                    title={cancellableJobs.length === 0 ? '当前无可取消任务' : '全选当前页可取消任务'}
+                  />
+                </th>
                 {['测评任务ID', '数据集', '类型', '版本号', '状态', '模型', '提交人', '创建时间', '日志', '操作'].map(h => (
                   <th key={h} className="px-4 py-3 text-center text-[11px] font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">{h}</th>
                 ))}
@@ -121,11 +184,19 @@ export function JobsPage() {
             </thead>
             <tbody className="divide-y divide-gray-50">
               {isLoading ? (
-                <tr><td colSpan={10} className="px-4 py-8 text-center text-sm text-gray-400">加载中...</td></tr>
+                <tr><td colSpan={11} className="px-4 py-8 text-center text-sm text-gray-400">加载中...</td></tr>
               ) : jobs?.length === 0 ? (
-                <tr><td colSpan={10} className="px-4 py-12 text-center text-sm text-gray-400">暂无记录</td></tr>
+                <tr><td colSpan={11} className="px-4 py-12 text-center text-sm text-gray-400">暂无记录</td></tr>
               ) : jobs?.map(job => (
                 <tr key={job.id} className="trow transition-colors">
+                  <td className="px-3 py-3.5 text-center">
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.includes(job.id)}
+                      disabled={!CANCELLABLE.has(job.status)}
+                      onChange={() => toggleSelect(job.id)}
+                    />
+                  </td>
                   <td className="px-4 py-3.5 text-center text-[13px] text-primary-600 font-medium">
                     {job.batch_id ?? '—'}
                   </td>
