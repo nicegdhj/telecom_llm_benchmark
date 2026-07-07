@@ -29,6 +29,7 @@ def test_build_infer_cmd_custom_task(tmp_path):
     )
     assert "docker" in cmd[0]
     assert "run" in cmd
+    assert "--pull=never" in cmd
     assert "--env-file" in cmd
     assert str(tmp_path / "env") in cmd
     assert "--tasks" in cmd

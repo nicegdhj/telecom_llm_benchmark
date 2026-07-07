@@ -11,7 +11,7 @@ def _common_docker_args(settings: Settings, job_id: int,
         data_vol_src = Path(settings.workspace_dir).parent / "data"
 
     return [
-        "docker", "run", "--rm",
+        "docker", "run", "--rm", "--pull=never",
         "--name", container_name,
         "--memory=128g", "--memory-swap=128g", "--shm-size=16g",
         "--env-file", str(env_file),
