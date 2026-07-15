@@ -1,4 +1,6 @@
 import asyncio
+from datetime import datetime
+from types import SimpleNamespace
 from unittest.mock import patch, MagicMock
 
 import pytest
@@ -9,6 +11,24 @@ from backend.app.models import Job, Model, Task
 from backend.app.services import worker
 from backend.app.services.worker import run_pending_jobs_once, wait_inflight
 from backend.app.services.seed import seed_generic_tasks
+
+
+def test_output_task_id_is_unique_for_jobs_started_in_same_second(monkeypatch):
+    class FixedDatetime:
+        @classmethod
+        def utcnow(cls):
+            return datetime(2026, 7, 15, 12, 0, 0)
+
+    monkeypatch.setattr(worker, "datetime", FixedDatetime)
+    job_1 = SimpleNamespace(id=41, batch_id=15, model_id=10, task_id=26)
+    job_2 = SimpleNamespace(id=42, batch_id=15, model_id=10, task_id=26)
+
+    output_1 = worker._make_output_task_id(job_1)
+    output_2 = worker._make_output_task_id(job_2)
+
+    assert output_1 == "batch15_m10_t26_j41_20260715_120000"
+    assert output_2 == "batch15_m10_t26_j42_20260715_120000"
+    assert output_1 != output_2
 
 
 async def _seed(client, n_models=1):

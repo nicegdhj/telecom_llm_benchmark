@@ -93,7 +93,7 @@ def _env_vars_for_model(model: Model) -> dict[str, str]:
 
 def _make_output_task_id(job: Job) -> str:
     ts = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
-    return f"batch{job.batch_id}_m{job.model_id}_t{job.task_id}_{ts}"
+    return f"batch{job.batch_id}_m{job.model_id}_t{job.task_id}_j{job.id}_{ts}"
 
 
 def _next_version_label(db: Session, kind: str, batch_id: int | None,

@@ -131,8 +131,20 @@ fi
 
 # ---- 4. 导入新镜像 ----
 log "[4/7] 导入新镜像（docker load）"
-docker load < "$REL/score-platform-images.tar.gz"
-ok "镜像已导入"
+IMAGE_ARCHIVE="$REL/score-platform-images.tar.gz"
+REQUIRED_IMAGES=(benchmark-eval:latest score-backend:latest score-frontend:latest)
+IMAGE_MANIFEST=$(tar -xOzf "$IMAGE_ARCHIVE" manifest.json 2>/dev/null) || \
+  die "无法读取镜像包 manifest.json：$IMAGE_ARCHIVE（文件可能损坏或格式不正确）"
+for image in "${REQUIRED_IMAGES[@]}"; do
+  grep -Fq "\"$image\"" <<< "$IMAGE_MANIFEST" || \
+    die "镜像包缺少期望镜像：$image（请在 ARM64 打包机重新执行 prod_all.sh）"
+done
+docker load < "$IMAGE_ARCHIVE"
+for image in "${REQUIRED_IMAGES[@]}"; do
+  docker image inspect "$image" >/dev/null 2>&1 || \
+    die "镜像包已导入，但缺少期望镜像：$image（请检查打包产物中的镜像名称和标签）"
+done
+ok "镜像已导入并验证：${REQUIRED_IMAGES[*]}"
 
 # ---- 5. 停旧容器 + 同步 code + 起新容器 ----
 log "[5/7] 停旧容器 → 同步 code → 起新容器"

@@ -510,6 +510,7 @@ bash /opt/eval_platform/platform_update.sh --pkg /opt/eval_platform/score_platfo
 | 端口被占用 / 启动报 `address already in use` | 宿主机已有服务占用该端口 | 改 `.env` 的 `FRONT_PORT`（如 8087→别的值），重新 `up -d` |
 | 访问端口后**莫名跳到另一个端口**（如访问 80 跳到 9096） | 该端口被**宿主机上别的服务**占用，score-front 因冲突没起来，命中的是旧服务 | `docker-compose ps` 确认 score-front 是否 Up；`lsof -i :<端口>` 查占用；换一个空闲 `FRONT_PORT` |
 | 提交评测后 job 一直 pending / 立即失败 | 算子容器起不来 | 见下三项逐一排查 |
+| `Unable to find image 'benchmark-eval:latest' locally` 并尝试访问 Docker Hub | 宿主机缺少该镜像 tag，旧版启动命令又使用了 Docker 默认的 `missing` 拉取策略；并发任务会重复放大报错 | `docker image inspect benchmark-eval:latest` 确认；缺失时重新 `docker load < score-platform-images.tar.gz`，然后用新版部署包更新。新版算子命令已强制 `--pull=never`，不会访问公网 |
 | 算子容器报挂载失败 / 找不到 eval_entry.py | `code/` 没铺好，或 `WORKSPACE_DIR` 内外路径不一致 | 重跑 `bash init_workspace.sh`；确认 .env 的 `WORKSPACE_DIR` 是宿主机真实绝对路径 |
 | 后端日志 `permission denied /var/run/docker.sock` | 后端容器无权访问宿主 docker | 确认 socket 已挂载；宿主 `chmod 666 /var/run/docker.sock` 或将运行用户加入 docker 组 |
 | 算子容器报连不上模型 | 910C 访问不到模型 `IP:PORT` | 在宿主 `curl` 验证模型服务可达；检查界面录入的 IP/端口 |
@@ -528,6 +529,7 @@ scp outputs/score_platform_*.tar.gz user@910C:/opt/
 # 【私域机·910C】
 cd /opt && tar -xzf score_platform_*.tar.gz && cd score_platform
 docker load < score-platform-images.tar.gz
+docker image inspect benchmark-eval:latest score-backend:latest score-frontend:latest >/dev/null
 cp .env.example .env && vi .env
 bash init_workspace.sh
 docker-compose -f docker-compose.prod.yml --env-file .env up -d

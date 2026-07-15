@@ -175,6 +175,11 @@ elif [[ -n "${IMAGE_TAR}" ]]; then
         echo "❌ Docker 镜像 load 失败，请检查 tar 包是否完整"
         exit 1
     fi
+    if ! docker image inspect "${IMAGE_TAG}" > /dev/null 2>&1; then
+        echo "❌ 镜像包已导入，但未找到期望镜像: ${IMAGE_TAG}"
+        echo "   请执行 docker image ls 检查镜像名称和标签"
+        exit 1
+    fi
     echo "✅ 镜像 load 成功: ${IMAGE_TAG}"
 else
     echo "❌ 镜像 ${IMAGE_TAG} 不存在，且未指定 --image-tar"
@@ -233,6 +238,7 @@ echo "---------------------------------------------------"
 
 DOCKER_common_args=(
     --rm
+    --pull=never
     --memory=128g
     --memory-swap=128g
     --shm-size=16g

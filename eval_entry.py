@@ -174,6 +174,10 @@ def setup_data_symlink(data_dir: Path):
     default_dir.symlink_to(data_dir.resolve())
 
 
+def _ais_bench_work_dir(output_dir: Path, task_id: str) -> Path:
+    return output_dir / task_id / "_ais_bench_work"
+
+
 # ── 执行评测 ────────────────────────────────────────────────────────
 def run_evaluation(
     task_nums: list,
@@ -193,8 +197,8 @@ def run_evaluation(
     for dset in generic_datasets:
         queue.append((dset, dset, "generic"))
 
-    ais_bench_output = ROOT / "outputs" / "default"
-    # 每次评测前清理旧的 default 目录，避免历史结果占用磁盘
+    ais_bench_output = _ais_bench_work_dir(output_dir, task_id)
+    # 只清理当前任务的临时目录，避免并发任务互相删除产出
     if ais_bench_output.exists():
         shutil.rmtree(ais_bench_output)
     ais_bench_output.mkdir(parents=True, exist_ok=True)
@@ -230,6 +234,7 @@ def run_evaluation(
                 "--max-num-workers",
                 str(concurrency),
             ]
+        cmd += ["--work-dir", str(ais_bench_output)]
         # 若指定了 --num-prompts，追加给 ais_bench（debug 和并发模式均生效）
         if num_prompts is not None:
             cmd += ["--num-prompts", str(num_prompts)]
@@ -296,7 +301,7 @@ def _find_infer_output(
     """查找本次推理产出的时间戳目录和样本数。
 
     Args:
-        ais_bench_output: ais_bench 输出根目录（outputs/default/）
+        ais_bench_output: 当前任务独立的 AISBench 输出根目录
         suite_name_pattern: 当前任务的 suite 名称
         run_start_time: 调用 ais_bench 前的 time.time()，用于时间过滤
 
@@ -373,8 +378,8 @@ def generate_infer_meta(results: list, task_id: str, model_config: str, model_na
     meta_path.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"\n📄 推理元数据已生成: {meta_path}")
 
-    # 兜底：搬运 outputs/default 中残余目录
-    ais_out = ROOT / "outputs" / "default"
+    # 兜底：搬运当前任务 AISBench 临时目录中的残余产出
+    ais_out = _ais_bench_work_dir(output_dir, task_id)
     dest_details = output_dir / task_id / "details"
     dest_details.mkdir(parents=True, exist_ok=True)
     if ais_out.exists():

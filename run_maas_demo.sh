@@ -13,7 +13,7 @@ set -a; source "$(dirname "$0")/.env"; set +a
 
 
 #ais_bench --models common_gateway --datasets task_101_suite --debug --num-prompts 1
-ais_bench --models common_gateway --datasets task_102_suite --debug --num-prompts 1
+ais_bench --models common_gateway --datasets teledata_gen_0_shot  --debug --num-prompts 1
 
 
 

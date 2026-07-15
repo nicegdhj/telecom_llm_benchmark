@@ -95,7 +95,7 @@ e# Score Platform — 评测管理平台 系统说明文档
 |---|---|
 | 前端 | React 18 + React Router 6 + TanStack Query + Tailwind CSS + shadcn/ui 风格组件 + Recharts |
 | 后端 | Python 3.10+、FastAPI、SQLAlchemy 2.x（ORM）、Pydantic v2、SQLite |
-| Worker | asyncio 协程，每秒轮询 Job 表，subprocess 启动 docker 容器 |
+| Worker | asyncio 协程，每 60 秒轮询 Job 表，subprocess 启动 docker 容器 |
 | 打包 | 前端 Vite；后端 uvicorn |
 | 容器化 | Docker + Docker Compose；前端 Nginx 多阶段构建 |
 | 计算镜像 | benchmark-eval:latest（ais_bench 独立镜像） |
@@ -106,8 +106,8 @@ e# Score Platform — 评测管理平台 系统说明文档
 FastAPI 主进程
 ├── HTTP 路由（CRUD + 查询）
 └── Worker 协程（asyncio.create_task，随进程启动）
-     ├── 每秒 poll: SELECT jobs WHERE status='pending'
-     ├── 检查全局并发配额（default_job_concurrency=4）
+     ├── 每 60 秒 poll: SELECT jobs WHERE status='pending'
+     ├── 检查全局并发配额（default_job_concurrency=6）
      ├── 拼装 docker run 命令（含临时 env 文件）
      ├── subprocess.Popen → 异步 wait
      ├── infer 完成 → 登记 Prediction → 更新 BatchCell → 追加 BatchRevision
@@ -575,8 +575,8 @@ docker compose logs -f score-backend
 | `EVAL_BACKEND_BACKEND_DATA_DIR` | `/opt/eval_backend_data` | 后端数据目录（DB、日志、env 文件） |
 | `EVAL_BACKEND_CODE_DIR` | `/opt/eval_workspace/code` | eval_entry.py 等文件所在目录 |
 | `EVAL_BACKEND_DOCKER_IMAGE_TAG` | `benchmark-eval:latest` | ais_bench 计算镜像标签 |
-| `EVAL_BACKEND_WORKER_POLL_INTERVAL_SEC` | `1.0` | Worker 轮询间隔（秒） |
-| `EVAL_BACKEND_DEFAULT_JOB_CONCURRENCY` | `4` | 最大并行 Job 数 |
+| `EVAL_BACKEND_WORKER_POLL_INTERVAL_SEC` | `60.0` | Worker 轮询间隔（秒） |
+| `EVAL_BACKEND_DEFAULT_JOB_CONCURRENCY` | `6` | 最大并行 Job 数 |
 | `EVAL_BACKEND_AUTH_TOKEN` | `null`（不鉴权） | Bearer Token，不配置则跳过鉴权 |
 
 ### 8.2 docker-compose 环境变量
