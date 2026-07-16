@@ -2,6 +2,8 @@ import os
 import json
 import shutil
 import tempfile
+import threading
+import time
 import unittest
 from unittest.mock import patch
 import importlib
@@ -49,11 +51,59 @@ class TestWriteStatus(unittest.TestCase):
         with patch.object(file_module, "logger") as mock_logger:
             ok = write_status(self.status_file, {"ok": True})
             self.assertTrue(ok)
-            mock_logger.warning.assert_called()  # logged recovery
+            mock_logger.debug.assert_called()
+            mock_logger.warning.assert_not_called()
 
         with open(self.status_file, "r", encoding="utf-8") as f:
             data = json.load(f)
         self.assertEqual(data, [{"ok": True}])
+
+    def test_read_waits_for_in_progress_write(self):
+        writer_started = threading.Event()
+        release_writer = threading.Event()
+        reader_result = []
+        original_dump = json.dump
+
+        def slow_dump(data, file_obj, *args, **kwargs):
+            if threading.current_thread().name == "status-writer":
+                serialized = json.dumps(data)
+                file_obj.write(serialized[:1])
+                file_obj.flush()
+                writer_started.set()
+                release_writer.wait(timeout=2)
+                file_obj.write(serialized[1:])
+                return None
+            return original_dump(data, file_obj, *args, **kwargs)
+
+        with patch.object(file_module.json, "dump", side_effect=slow_dump):
+            writer = threading.Thread(
+                target=write_status,
+                args=(self.status_file, {"seq": 1}),
+                name="status-writer",
+            )
+            writer.start()
+            self.assertTrue(writer_started.wait(timeout=1))
+
+            with patch.object(file_module, "logger") as mock_logger:
+                reader = threading.Thread(
+                    target=lambda: reader_result.extend(
+                        read_and_clear_statuses(
+                            self.tmpdir,
+                            [os.path.basename(self.status_file)],
+                        )
+                    ),
+                    name="status-reader",
+                )
+                reader.start()
+                time.sleep(0.05)
+                release_writer.set()
+                writer.join(timeout=2)
+                reader.join(timeout=2)
+
+                self.assertFalse(writer.is_alive())
+                self.assertFalse(reader.is_alive())
+                self.assertEqual(reader_result, [{"seq": 1}])
+                mock_logger.warning.assert_not_called()
 
     def test_write_status_ioerror_on_write_returns_false(self):
         # Use a directory path to trigger IOError on write
@@ -112,7 +162,8 @@ class TestReadAndClearStatuses(unittest.TestCase):
             # bad file cleared
             with open(bad, "r", encoding="utf-8") as f:
                 self.assertEqual(json.load(f), [])
-            mock_logger.warning.assert_called()
+            mock_logger.debug.assert_called()
+            mock_logger.warning.assert_not_called()
 
     def test_ioerror_on_clear_logs_warning(self):
         name = "ro.json"

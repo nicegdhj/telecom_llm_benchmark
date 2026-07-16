@@ -314,6 +314,69 @@ class TestVLLMCustomAPIChat(unittest.TestCase):
     def test_parse_text_response_wrapper(self):
         self.run_async_test(self.test_parse_text_response())
 
+    def test_parse_text_response_uses_reasoning_fallback(self):
+        model = VLLMCustomAPIChat(**self.default_kwargs)
+        output = RequestOutput()
+        response = {
+            "choices": [
+                {
+                    "message": {
+                        "content": "final answer",
+                        "reasoning": "thinking process",
+                    }
+                }
+            ]
+        }
+
+        self.run_async_test(model.parse_text_response(response, output))
+
+        self.assertEqual(output.reasoning_content, "thinking process")
+        self.assertEqual(
+            output.get_prediction(),
+            "thinking process</think>final answer",
+        )
+
+    def test_parse_stream_response_uses_reasoning_fallback(self):
+        model = VLLMCustomAPIChat(**self.default_kwargs)
+        output = RequestOutput()
+        response = {
+            "choices": [
+                {
+                    "delta": {
+                        "content": "final answer",
+                        "reasoning": "thinking process",
+                    }
+                }
+            ]
+        }
+
+        self.run_async_test(model.parse_stream_response(response, output))
+
+        self.assertEqual(output.reasoning_content, "thinking process")
+        self.assertEqual(
+            output.get_prediction(),
+            "thinking process</think>final answer",
+        )
+
+    def test_reasoning_content_takes_precedence_over_reasoning(self):
+        model = VLLMCustomAPIChat(**self.default_kwargs)
+        output = RequestOutput()
+        response = {
+            "choices": [
+                {
+                    "message": {
+                        "content": "final answer",
+                        "reasoning_content": "preferred thinking",
+                        "reasoning": "fallback thinking",
+                    }
+                }
+            ]
+        }
+
+        self.run_async_test(model.parse_text_response(response, output))
+
+        self.assertEqual(output.reasoning_content, "preferred thinking")
+
     def test_calc_ppl(self):
         """测试_calc_ppl方法"""
         model = VLLMCustomAPIChat(**self.default_kwargs)
