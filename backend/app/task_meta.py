@@ -37,6 +37,9 @@ TASK_META: dict[str, dict[str, str]] = {
     "task_60_suite":  {"alias": "投诉调度智能体-是否省内网络投诉",               "category": "意图理解-分类"},
     "task_101_suite": {"alias": "专业知识问答-综合知识型",                       "category": "知识问答"},
     "task_102_suite": {"alias": "多专业知识问答-传输/核心网/集客/家客知识型",     "category": "知识问答"},
+    "task_105_suite": {"alias": "家庭支撑智能体-连续对话最终轮评测",           "category": "意图理解-多轮对话"},
+    "task_106_suite": {"alias": "家庭支撑智能体-连续对话逐轮评测",             "category": "意图理解-多轮对话"},
+    "task_107_suite": {"alias": "安全管理智能体-网络安全告警研判(binary_gpt)", "category": "意图理解-分类"},
 }
 
 
@@ -45,6 +48,7 @@ ALLOWED_TASK_KEYS: list[str] = [
     # 自定义任务（--tasks 1 34 36 43 44 60 101 102）
     "task_1_suite", "task_34_suite", "task_36_suite", "task_43_suite",
     "task_44_suite", "task_60_suite", "task_101_suite", "task_102_suite",
+    "task_105_suite", "task_106_suite", "task_107_suite",
     # 通用数据集（--generic-datasets 顺序）
     "alarm_data_gen_0_shot", "ceval_gen_0_shot_str", "mmlu_redux_gen_5_shot_str",
     "teledata_gen_0_shot", "gpqa_gen_0_shot_str", "bbh_gen_3_shot_cot_chat",
@@ -92,4 +96,7 @@ TASK_DATA_PATH: dict[str, str] = {
     "task_60_suite":  "data/custom_task/task_60.jsonl",
     "task_101_suite": "data/custom_task/task_101.jsonl",
     "task_102_suite": "data/task_102",
+    "task_105_suite": "data/custom_task/task_105.jsonl",
+    "task_106_suite": "data/custom_task/task_106.jsonl",
+    "task_107_suite": "data/custom_task/task_107.jsonl",
 }
