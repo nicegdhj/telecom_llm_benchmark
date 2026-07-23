@@ -18,7 +18,7 @@ DEFAULT_GENERIC = [
     "tele_exam_gen_0_shot_str", "opseval_gen_0_shot", "identity_gen_0_shot",
     "exam_gen_0_shot",
 ]
-DEFAULT_CUSTOM = [1, 34, 36, 43, 44, 60, 101, 102]
+DEFAULT_CUSTOM = [1, 34, 36, 43, 44, 60, 101, 102, 105, 106, 107]
 
 
 def _get_ais_bench_configs() -> Path:

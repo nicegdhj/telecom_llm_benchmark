@@ -9,11 +9,15 @@ import tarfile
 ROOT = Path(__file__).resolve().parents[2]
 
 
-def test_private_runner_never_pulls_benchmark_image():
+def test_private_runner_detects_pull_flag_before_disabling_pull():
     script = (ROOT / "run_mixed_benchmark.sh").read_text(encoding="utf-8")
     common_args = script.split("DOCKER_common_args=(", 1)[1].split(")", 1)[0]
 
-    assert "--pull=never" in common_args
+    assert 'DOCKER_RUN_HELP="$(docker run --help 2>&1 || true)"' in script
+    assert '== *"--pull"*' in script
+    assert "DOCKER_PULL_ARGS=(--pull=never)" in script
+    assert '"${DOCKER_PULL_ARGS[@]}"' in common_args
+    assert "--pull=never" not in common_args
 
 
 def test_private_runner_verifies_loaded_image_tag():

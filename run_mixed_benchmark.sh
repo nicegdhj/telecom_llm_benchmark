@@ -236,9 +236,17 @@ echo "$MODE_DESC"
 echo "🚀 Task ID: ${TASK_ID}"
 echo "---------------------------------------------------"
 
+DOCKER_PULL_ARGS=()
+DOCKER_RUN_HELP="$(docker run --help 2>&1 || true)"
+if [[ "${DOCKER_RUN_HELP}" == *"--pull"* ]]; then
+    DOCKER_PULL_ARGS=(--pull=never)
+else
+    echo "⚠️ 当前 Docker 不支持 --pull，使用已校验的本地镜像: ${IMAGE_TAG}"
+fi
+
 DOCKER_common_args=(
     --rm
-    --pull=never
+    "${DOCKER_PULL_ARGS[@]}"
     --memory=128g
     --memory-swap=128g
     --shm-size=16g
@@ -287,14 +295,15 @@ if [[ "$RUN_MODE" == "infer" ]] || [[ "$RUN_MODE" == "all" ]]; then
             --model "${MODEL_NAME}" \
             --concurrency "${CONCURRENCY}" \
             --model-config "${MODEL_CONFIG}" \
-            --tasks 1 34 36 43 44 60 101 102 \
-            --generic-datasets \
-                alarm_data_gen_0_shot \
-                tele_exam_gen_0_shot \
-                tele_exam_gen_0_shot_str \
-                opseval_gen_0_shot \
-                identity_gen_0_shot \
-                exam_gen_0_shot
+            --tasks 105 106 107
+#            --tasks 1 34 36 43 44 60 101 102 105 106 \
+#            --generic-datasets \
+#                alarm_data_gen_0_shot \
+#                tele_exam_gen_0_shot \
+#                tele_exam_gen_0_shot_str \
+#                opseval_gen_0_shot \
+#                identity_gen_0_shot \
+#                exam_gen_0_shot
 #            --tasks 1 34 36 43 44 60 101 102 \
 #            --generic-datasets \
 #                alarm_data_gen_0_shot \
