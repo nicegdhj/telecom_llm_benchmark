@@ -34,7 +34,7 @@ def test_no_label_with_union_select_is_high_confidence_yes():
         model_output="Yes",
     )
     assert result["建议标签"] == "Yes"
-    assert result["复核等级"] == "高置信疑似错标"
+    assert result["错标嫌疑等级"] == "高错标嫌疑"
     assert "SQL注入" in result["规则类别"]
 
 
@@ -101,20 +101,20 @@ def analyze_row(payload: str, gold: str, model_output: object) -> dict[str, obje
     score = sum(rule.score for rule, _ in matches)
     has_strong = any(rule.strength == "strong" for rule, _ in matches)
     if gold == "No" and has_strong:
-        level, suggestion = "高置信疑似错标", "Yes"
+        level, suggestion = "高错标嫌疑", "Yes"
     elif gold == "No" and score >= 4:
-        level, suggestion = "中置信待复核", ""
+        level, suggestion = "中错标嫌疑", ""
     elif gold == "Yes" and has_strong:
-        level, suggestion = "标签有攻击证据", "Yes"
+        level, suggestion = "规则支持原标签", "Yes"
     elif gold == "Yes":
-        level, suggestion = "中置信待复核" if matches else "低置信待复核"
+        level, suggestion = "中错标嫌疑" if matches else "低错标嫌疑"
         suggestion = ""
     else:
-        level, suggestion = "低置信/暂未发现错标证据", ""
+        level, suggestion = "规则未发现错标证据", ""
     return {
         "规范化模型输出": normalize_model_output(model_output),
         "建议标签": suggestion,
-        "复核等级": level,
+        "错标嫌疑等级": level,
         "风险分": score,
         "规则类别": "；".join(dict.fromkeys(rule.category for rule, _ in matches)),
         "命中证据": "；".join(f"{rule.name}: {evidence}" for rule, evidence in matches),
@@ -152,7 +152,7 @@ def test_normal_request_is_not_suggested_as_attack():
         model_output="Yes",
     )
     assert result["建议标签"] == ""
-    assert result["复核等级"] == "低置信/暂未发现错标证据"
+    assert result["错标嫌疑等级"] == "规则未发现错标证据"
 
 
 def test_yes_without_rule_hit_is_review_only_not_auto_no():
@@ -231,9 +231,9 @@ def test_review_workbook_creates_three_consistent_sheets(tmp_path):
     stats = review_workbook(source, output)
 
     workbook = load_workbook(output, read_only=True, data_only=True)
-    assert workbook.sheetnames == ["全部错误_规则分析", "高置信疑似错标", "规则汇总"]
+    assert workbook.sheetnames == ["全部错误_规则分析", "高错标嫌疑", "规则汇总"]
     assert workbook["全部错误_规则分析"].max_row == 4
-    assert workbook["高置信疑似错标"].max_row == 2
+    assert workbook["高错标嫌疑"].max_row == 2
     assert stats["input_rows"] == 3
     assert stats["high_confidence"] == 1
 ```
@@ -306,7 +306,7 @@ Expected: reports 491 input rows and prints the generated workbook path.
 Open the generated workbook programmatically and verify:
 
 - `全部错误_规则分析` contains 491 data rows.
-- `高置信疑似错标` count equals the printed `high_confidence` count.
+- `高错标嫌疑` count equals the printed `high_confidence` count.
 - `规则汇总` totals reconcile to 491.
 - All source payloads, labels, model outputs, and prompts are unchanged.
 

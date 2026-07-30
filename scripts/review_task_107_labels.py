@@ -31,7 +31,7 @@ REQUIRED_COLUMNS = ("payload", "标记", "模型输出")
 ANALYSIS_COLUMNS = (
     "规范化模型输出",
     "建议标签",
-    "复核等级",
+    "错标嫌疑等级",
     "风险分",
     "规则类别",
     "命中证据",
@@ -357,13 +357,13 @@ def _build_explanation(
     level: str,
     matches: list[tuple[Rule, str]],
 ) -> str:
-    if level == "高置信疑似错标":
+    if level == "高错标嫌疑":
         strong_names = [rule.name for rule, _ in matches if rule.strength == "strong"]
         return (
             f"原标记为 No，但命中明确攻击规则：{', '.join(strong_names)}；"
             "建议人工复核是否应标记为 Yes。"
         )
-    if level == "标签有攻击证据":
+    if level == "规则支持原标签":
         return "原标记为 Yes，且正则发现明确攻击证据，当前标签有规则支持。"
     if matches:
         return (
@@ -387,24 +387,24 @@ def analyze_row(payload: str, gold: str, model_output: object) -> dict[str, obje
     has_strong = any(rule.strength == "strong" for rule, _ in matches)
 
     if normalized_gold == "No" and has_strong:
-        level, suggestion = "高置信疑似错标", "Yes"
+        level, suggestion = "高错标嫌疑", "Yes"
     elif normalized_gold == "No" and score >= 4:
-        level, suggestion = "中置信待复核", ""
+        level, suggestion = "中错标嫌疑", ""
     elif normalized_gold == "No":
-        level, suggestion = "低置信/暂未发现错标证据", ""
+        level, suggestion = "规则未发现错标证据", ""
     elif has_strong:
-        level, suggestion = "标签有攻击证据", "Yes"
+        level, suggestion = "规则支持原标签", "Yes"
     elif matches:
-        level, suggestion = "中置信待复核", ""
+        level, suggestion = "中错标嫌疑", ""
     else:
-        level, suggestion = "低置信待复核", ""
+        level, suggestion = "低错标嫌疑", ""
 
     categories = list(dict.fromkeys(rule.category for rule, _ in matches))
     evidence = [f"{rule.name}: {text}" for rule, text in matches]
     return {
         "规范化模型输出": normalize_model_output(model_output),
         "建议标签": suggestion,
-        "复核等级": level,
+        "错标嫌疑等级": level,
         "风险分": score,
         "规则类别": "；".join(categories),
         "命中证据": "；".join(evidence),
@@ -428,7 +428,7 @@ def _style_sheet(sheet) -> None:
         "提示词": 78,
         "规范化模型输出": 16,
         "建议标签": 12,
-        "复核等级": 24,
+        "错标嫌疑等级": 24,
         "风险分": 10,
         "规则类别": 34,
         "命中证据": 80,
@@ -502,11 +502,11 @@ def review_workbook(input_path: Path, output_path: Path) -> dict[str, object]:
     all_sheet.title = "全部错误_规则分析"
     _append_table(all_sheet, all_headers, records)
 
-    high_sheet = workbook.create_sheet("高置信疑似错标")
+    high_sheet = workbook.create_sheet("高错标嫌疑")
     high_confidence = [
         record
         for record in records
-        if record["复核等级"] == "高置信疑似错标"
+        if record["错标嫌疑等级"] == "高错标嫌疑"
     ]
     _append_table(high_sheet, all_headers, high_confidence)
 
@@ -514,9 +514,9 @@ def review_workbook(input_path: Path, output_path: Path) -> dict[str, object]:
     summary_sheet.append(["汇总类型", "名称", "数量"])
     summary_sheet.append(["总体", "输入样本数", len(records)])
 
-    level_counts = Counter(record["复核等级"] for record in records)
+    level_counts = Counter(record["错标嫌疑等级"] for record in records)
     for name, count in sorted(level_counts.items()):
-        summary_sheet.append(["复核等级", name, count])
+        summary_sheet.append(["错标嫌疑等级", name, count])
 
     suggestion_counts = Counter(record["建议标签"] or "无建议" for record in records)
     for name, count in sorted(suggestion_counts.items()):
@@ -570,7 +570,6 @@ def main() -> None:
     print(f"输入样本数: {stats['input_rows']}")
     for level, count in sorted(stats["review_levels"].items()):
         print(f"{level}: {count}")
-    print(f"高置信疑似错标: {stats['high_confidence']}")
     print(f"输出文件: {stats['output']}")
 
 

@@ -17,7 +17,7 @@ def test_no_label_with_union_select_is_high_confidence_yes():
     )
 
     assert result["建议标签"] == "Yes"
-    assert result["复核等级"] == "高置信疑似错标"
+    assert result["错标嫌疑等级"] == "高错标嫌疑"
     assert "SQL注入" in result["规则类别"]
 
 
@@ -32,7 +32,7 @@ def test_double_encoded_path_traversal_is_detected():
     )
 
     assert result["建议标签"] == "Yes"
-    assert result["复核等级"] == "高置信疑似错标"
+    assert result["错标嫌疑等级"] == "高错标嫌疑"
     assert "路径遍历/文件包含" in result["规则类别"]
 
 
@@ -73,7 +73,7 @@ def test_normal_request_is_not_suggested_as_attack():
     )
 
     assert result["建议标签"] == ""
-    assert result["复核等级"] == "低置信/暂未发现错标证据"
+    assert result["错标嫌疑等级"] == "规则未发现错标证据"
     assert result["风险分"] == 0
 
 
@@ -85,7 +85,7 @@ def test_yes_without_rule_hit_is_review_only_not_auto_no():
     )
 
     assert result["建议标签"] != "No"
-    assert result["复核等级"] in {"中置信待复核", "低置信待复核"}
+    assert result["错标嫌疑等级"] in {"中错标嫌疑", "低错标嫌疑"}
 
 
 def test_yes_with_no_rule_hit_remains_low_confidence_review_only():
@@ -96,7 +96,7 @@ def test_yes_with_no_rule_hit_remains_low_confidence_review_only():
     )
 
     assert result["建议标签"] == ""
-    assert result["复核等级"] == "低置信待复核"
+    assert result["错标嫌疑等级"] == "低错标嫌疑"
 
 
 def test_no_with_only_medium_evidence_is_not_suggested_as_yes():
@@ -107,7 +107,7 @@ def test_no_with_only_medium_evidence_is_not_suggested_as_yes():
     )
 
     assert result["建议标签"] == ""
-    assert result["复核等级"] != "高置信疑似错标"
+    assert result["错标嫌疑等级"] != "高错标嫌疑"
 
 
 @pytest.mark.parametrize(
@@ -121,7 +121,7 @@ def test_isolated_code_keywords_are_not_strong_attack_evidence(payload):
     result = analyze_row(payload=payload, gold="No", model_output="Yes")
 
     assert result["建议标签"] == ""
-    assert result["复核等级"] != "高置信疑似错标"
+    assert result["错标嫌疑等级"] != "高错标嫌疑"
 
 
 def test_case_sensitive_java_serialization_signature():
@@ -211,11 +211,11 @@ def test_review_workbook_creates_three_consistent_sheets(tmp_path):
     workbook = load_workbook(output, read_only=True, data_only=True)
     assert workbook.sheetnames == [
         "全部错误_规则分析",
-        "高置信疑似错标",
+        "高错标嫌疑",
         "规则汇总",
     ]
     assert workbook["全部错误_规则分析"].max_row == 4
-    assert workbook["高置信疑似错标"].max_row == 2
+    assert workbook["高错标嫌疑"].max_row == 2
     assert stats["input_rows"] == 3
     assert stats["high_confidence"] == 1
 
