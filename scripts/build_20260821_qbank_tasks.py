@@ -196,6 +196,34 @@ def write_suite(task, system):
     out.write_text(build_suite_content(task, system), encoding="utf-8")
 
 
+def write_doc(summaries):
+    lines = [
+        "# 20260821 各专业题库评测任务映射",
+        "",
+        "数据来源：`mydata/20260821专业题库测试`。构建范围：进度跟踪表第 2、3 行（知识理解 + 意图识别）。",
+        "",
+        "| 任务编号 | 数据集名 | 能力 | 源文件 | 评估器 | 系统提示词 | 实际条数 |",
+        "|---------|---------|------|--------|--------|-----------|---------|",
+    ]
+    mode_note = {"system": "有", "fold": "拼入input", "none": "无"}
+    for task, n in summaries:
+        lines.append(
+            f"| task_{task['task_id']} | {task['name']} | {task['cap']} | "
+            f"`{task['file']}` | {task['evaluator']} | "
+            f"{mode_note[task['prompt_mode']]} | {n} |"
+        )
+    lines += [
+        "",
+        "> 说明：",
+        "> - task_210 源文件 1007 行，进度跟踪表标注 1911（未与专业确认），以实际文件数据行为准。",
+        "> - task_203/211 提示词按行变化，已逐行拼入 input，不设系统提示词。",
+        "> - task_206/209/210 提示词恒定，取列众数作为 SYSTEM_INSTRUCTION。",
+    ]
+    DOC_OUT.parent.mkdir(parents=True, exist_ok=True)
+    DOC_OUT.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    print(f"📄 映射文档: {DOC_OUT}")
+
+
 def main():
     DATA_OUT.mkdir(parents=True, exist_ok=True)
     SUITE_OUT.mkdir(parents=True, exist_ok=True)
@@ -208,6 +236,7 @@ def main():
         print(f"✅ task_{task['task_id']} {task['name']}: {len(records)} 条, "
               f"system={'有' if system else '无'}")
     print(f"总计 {total} 条")
+    write_doc([(t, len(build_records(t)[0])) for t in TASKS])
 
 
 if __name__ == "__main__":
