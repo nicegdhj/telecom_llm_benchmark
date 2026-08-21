@@ -48,3 +48,25 @@ def test_no_lone_slash_input(task_id, n_expected, eval_type, prompt_mode):
     # input 不应是单个 "/"（避免把空提示词当成了问题）
     for rec in records:
         assert rec["input"].strip() != "/"
+
+
+import importlib
+import sys
+
+
+@pytest.mark.parametrize("task_id,n_expected,eval_type,prompt_mode", EXPECT)
+def test_suite_import(task_id, n_expected, eval_type, prompt_mode):
+    sys.path.insert(0, str(ROOT))
+    mod = importlib.import_module(
+        f"ais_bench.benchmark.configs.datasets.custom_task.task_{task_id}_suite"
+    )
+    datasets = getattr(mod, f"task_{task_id}_datasets")
+    assert len(datasets) == 1
+    ds = datasets[0]
+    assert ds["abbr"] == f"task_{task_id}"
+    assert ds["path"] == f"data/custom_task/task_{task_id}.jsonl"
+    assert ds["reader_cfg"]["input_columns"] == ["input"]
+    assert ds["reader_cfg"]["output_column"] == "output"
+    ev_cfg = ds["eval_cfg"]["evaluator"]
+    assert ev_cfg["type"].__name__ == eval_type
+    assert (getattr(mod, "SYSTEM_INSTRUCTION", None) is not None) == (prompt_mode == "system")

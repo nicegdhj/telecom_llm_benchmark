@@ -10,6 +10,7 @@
 """
 
 import json
+import pprint
 from collections import Counter
 from pathlib import Path
 
@@ -116,6 +117,85 @@ def write_data(records, task):
             f.write(json.dumps(rec, ensure_ascii=False) + "\n")
 
 
+# 导入行（按评估器插入）
+_IMPORTS = [
+    "from ais_bench.benchmark.openicl.icl_prompt_template import PromptTemplate",
+    "from ais_bench.benchmark.openicl.icl_retriever import ZeroRetriever",
+    "from ais_bench.benchmark.openicl.icl_inferencer import GenInferencer",
+    "from ais_bench.benchmark.datasets.custom import CustomDataset",
+]
+_EVAL_IMPORT = {
+    "TelecomLLMJudgeEvaluator": "from ais_bench.benchmark.openicl.icl_evaluator import TelecomLLMJudgeEvaluator",
+    "JsonFieldEvaluator": "from ais_bench.benchmark.openicl.icl_evaluator import JsonFieldEvaluator",
+    "AccEvaluator": "from ais_bench.benchmark.openicl.icl_evaluator import AccEvaluator",
+}
+
+
+def build_suite_content(task, system):
+    tid = task["task_id"]
+    ev = task["evaluator"]
+    imports = _IMPORTS[:3] + [_EVAL_IMPORT[ev]] + _IMPORTS[3:]
+
+    if ev == "TelecomLLMJudgeEvaluator":
+        eval_block = "    evaluator=dict(type=TelecomLLMJudgeEvaluator),"
+    elif ev == "JsonFieldEvaluator":
+        fc = pprint.pformat(task["field_config"], width=72, sort_dicts=False)
+        eval_block = (
+            "    evaluator=dict(\n"
+            "        type=JsonFieldEvaluator,\n"
+            f"        field_config={fc},\n"
+            "        default_match_type='exact',\n"
+            "        return_details=True,\n"
+            "        strict_mode=True,\n"
+            "    ),"
+        )
+    else:
+        eval_block = "    evaluator=dict(type=AccEvaluator),"
+
+    system_section = ""
+    begin_block = ""
+    if system is not None:
+        system_section = (
+            f"\n# 该任务固定的系统提示词（取自源文件提示词列众数）\n"
+            f"SYSTEM_INSTRUCTION = {json.dumps(system, ensure_ascii=False)}\n"
+        )
+        begin_block = (
+            "            begin=[\n"
+            "                dict(role='SYSTEM', fallback_role='HUMAN', prompt=SYSTEM_INSTRUCTION),\n"
+            "            ],\n"
+        )
+
+    content = (
+        "\n".join(imports)
+        + f"\n\n# task_{tid}: {task['name']}\n# Metric: {ev}"
+        + system_section
+        + f"\ntask_{tid}_reader_cfg = dict(\n"
+        + "    input_columns=['input'],\n    output_column='output',\n)\n"
+        + f"\ntask_{tid}_infer_cfg = dict(\n"
+        + "    prompt_template=dict(\n        type=PromptTemplate,\n        template=dict(\n"
+        + begin_block
+        + "            round=[\n"
+        + "                dict(role='HUMAN', prompt='{input}'),\n"
+        + "                dict(role='BOT', prompt=''),\n            ],\n"
+        + "        ),\n    ),\n"
+        + "    retriever=dict(type=ZeroRetriever),\n"
+        + "    inferencer=dict(type=GenInferencer),\n)\n"
+        + f"\ntask_{tid}_eval_cfg = dict(\n{eval_block}\n)\n"
+        + f"\n# 导出数据集配置\ntask_{tid}_datasets = [\n"
+        + "    dict(\n        type=CustomDataset,\n"
+        + f"        abbr='task_{tid}',\n        path='data/custom_task/task_{tid}.jsonl',\n"
+        + f"        reader_cfg=task_{tid}_reader_cfg,\n"
+        + f"        infer_cfg=task_{tid}_infer_cfg,\n"
+        + f"        eval_cfg=task_{tid}_eval_cfg,\n    )\n]\n"
+    )
+    return content
+
+
+def write_suite(task, system):
+    out = SUITE_OUT / f"task_{task['task_id']}_suite.py"
+    out.write_text(build_suite_content(task, system), encoding="utf-8")
+
+
 def main():
     DATA_OUT.mkdir(parents=True, exist_ok=True)
     SUITE_OUT.mkdir(parents=True, exist_ok=True)
@@ -123,6 +203,7 @@ def main():
     for task in TASKS:
         records, system = build_records(task)
         write_data(records, task)
+        write_suite(task, system)
         total += len(records)
         print(f"✅ task_{task['task_id']} {task['name']}: {len(records)} 条, "
               f"system={'有' if system else '无'}")
