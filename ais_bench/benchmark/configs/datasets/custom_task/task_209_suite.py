@@ -35,7 +35,8 @@ task_209_eval_cfg = dict(
     evaluator=dict(
         type=JsonFieldEvaluator,
         field_config={'intent': {'match_type': 'exact', 'weight': 1.0},
- 'entities': {'match_type': 'exact', 'weight': 0.0}},
+ 'entities': {'match_type': 'exact', 'weight': 0.0},
+ 'confidence': {'match_type': 'exact', 'weight': 0.0}},
         default_match_type='exact',
         return_details=True,
         strict_mode=True,

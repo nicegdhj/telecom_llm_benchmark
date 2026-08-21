@@ -70,3 +70,12 @@ def test_suite_import(task_id, n_expected, eval_type, prompt_mode):
     ev_cfg = ds["eval_cfg"]["evaluator"]
     assert ev_cfg["type"].__name__ == eval_type
     assert (getattr(mod, "SYSTEM_INSTRUCTION", None) is not None) == (prompt_mode == "system")
+    if eval_type == "JsonFieldEvaluator":
+        # 契约守卫：gold output 的每个顶层字段都必须在 field_config 中显式声明，
+        # 否则 JsonFieldEvaluator 会以默认 exact/1.0 打分，strict_mode 下几乎全部判 0。
+        gold_keys = set()
+        for line in (DATA_DIR / f"task_{task_id}.jsonl").read_text(encoding="utf-8").splitlines():
+            if line.strip():
+                rec = json.loads(line)
+                gold_keys |= set(json.loads(rec["output"]).keys())
+        assert gold_keys <= set(ev_cfg["field_config"].keys())
