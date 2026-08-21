@@ -129,7 +129,7 @@ class TelecomLLMJudgeEvaluator(LLMJudgeEvaluator):
             f"共 {len(prompts)} 条待评分"
         )
 
-        max_out_len = 512
+        max_out_len = getattr(self.model, 'max_out_len', 4096)
         if getattr(self.model, 'is_api', False):
             import asyncio
             from ais_bench.benchmark.models.output import RequestOutput
@@ -138,13 +138,23 @@ class TelecomLLMJudgeEvaluator(LLMJudgeEvaluator):
             async def _run_api_inference():
                 async with aiohttp.ClientSession(trust_env=True) as session:
                     outputs = [RequestOutput(False) for _ in prompts]
+                    concurrency = max(
+                        1,
+                        int((self.model_cfg or {}).get('batch_size', 5)),
+                    )
+                    semaphore = asyncio.Semaphore(concurrency)
+
+                    async def _generate(prompt, output):
+                        async with semaphore:
+                            await self.model.generate(
+                                input_data=prompt,
+                                max_out_len=max_out_len,
+                                output=output,
+                                session=session,
+                            )
+
                     tasks = [
-                        self.model.generate(
-                            input_data=prompt,
-                            max_out_len=max_out_len,
-                            output=output,
-                            session=session,
-                        )
+                        _generate(prompt, output)
                         for prompt, output in zip(prompts, outputs)
                     ]
                     await asyncio.gather(*tasks)

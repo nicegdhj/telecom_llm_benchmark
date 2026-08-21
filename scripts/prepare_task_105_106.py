@@ -1,4 +1,4 @@
-"""Prepare the session-aware task_105 and legacy task_106 datasets."""
+"""Prepare the session-aware task_105 and per-turn task_106 datasets."""
 
 from __future__ import annotations
 
@@ -64,8 +64,15 @@ def _gold(row: dict[str, str]) -> str:
     )
 
 
+def _cumulative_gold(row: dict[str, str], information: dict[str, str]) -> str:
+    return json.dumps(
+        {"业务类别": row["业务类别"], "信息提取": information},
+        ensure_ascii=False,
+    )
+
+
 def build_task_records(rows: Iterable[dict[str, str]]) -> tuple[list[dict[str, str]], list[dict[str, str]]]:
-    """Return session-aware per-turn records and legacy per-turn records."""
+    """Return gold-history task_105 records and user-only task_106 records."""
     conversations: dict[str, list[dict[str, str]]] = {}
 
     for row in rows:
@@ -77,20 +84,27 @@ def build_task_records(rows: Iterable[dict[str, str]]) -> tuple[list[dict[str, s
     task_106: list[dict[str, str]] = []
     for conversation in conversations.values():
         inputs: list[str] = []
+        task_105_messages: list[dict[str, str]] = []
+        cumulative_information: dict[str, str] = {}
         turn_count = len(conversation)
         session_id = conversation[0]["session_id"]
         for turn_index, row in enumerate(conversation, start=1):
             inputs.append(f"用户：{row['input']}")
+            task_105_messages.append({"role": "HUMAN", "prompt": inputs[-1]})
+            for column, value in row.items():
+                if column not in {"session_id", "input", "业务类别"} and value:
+                    cumulative_information[column] = value
+            current_gold = _cumulative_gold(row, cumulative_information)
             task_105.append({
                 "session_id": session_id,
                 "turn_index": turn_index,
                 "turn_count": turn_count,
-                "input": "\n".join(inputs),
-                "output": _gold(row),
+                "input": list(task_105_messages),
+                "output": current_gold,
             })
             task_106.append({
-                "input": "\n".join(inputs),
-                "output": _gold(row),
+                "input": list(inputs),
+                "output": current_gold,
             })
     return task_105, task_106
 

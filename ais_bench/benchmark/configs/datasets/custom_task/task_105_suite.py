@@ -1,4 +1,4 @@
-from ais_bench.benchmark.openicl.icl_prompt_template import PromptTemplate
+from ais_bench.benchmark.openicl.icl_prompt_template.task_106_prompt_template import Task106PromptTemplate
 from ais_bench.benchmark.openicl.icl_retriever import ZeroRetriever
 from ais_bench.benchmark.openicl.icl_inferencer import GenInferencer
 from ais_bench.benchmark.openicl.icl_evaluator.task_105_session_evaluator import Task105SessionEvaluator
@@ -66,11 +66,8 @@ task_105_reader_cfg = dict(input_columns=["input"], output_column="output")
 
 task_105_infer_cfg = dict(
     prompt_template=dict(
-        type=PromptTemplate,
-        template=dict(
-            begin=[dict(role="SYSTEM", fallback_role="HUMAN", prompt=SYSTEM_INSTRUCTION)],
-            round=[dict(role="HUMAN", prompt="{input}"), dict(role="BOT", prompt="")],
-        ),
+        type=Task106PromptTemplate,
+        template=SYSTEM_INSTRUCTION,
     ),
     retriever=dict(type=ZeroRetriever),
     inferencer=dict(type=GenInferencer),

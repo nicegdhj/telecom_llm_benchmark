@@ -240,6 +240,21 @@ RULES = (
         flags=0,
     ),
     _rule(
+        "LOGIN_PLAINTEXT_PASSWORD",
+        "登录探测/弱口令",
+        (
+            r"^\s*(?:get|post|put|patch)\s+[^\r\n]*login[^\r\n]*?"
+            r"[\s\S]{0,4000}?(?:[?&\s])password\s*=\s*"
+            r"(?![0-9a-f]{32}(?:[&\s]|$))"
+            r"(?![0-9a-f]{40}(?:[&\s]|$))"
+            r"(?![0-9a-f]{64}(?:[&\s]|$))"
+            r"[^&\s]{1,128}"
+        ),
+        6,
+        "strong",
+        "登录接口参数中携带明文密码，按专家口径视为探测器攻击",
+    ),
+    _rule(
         "JAVASCRIPT_URI",
         "XSS",
         r"javascript\s*:",

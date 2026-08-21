@@ -6,14 +6,23 @@ set -a; source "$(dirname "$0")/.env"; set +a
 
 
 
-#ais_bench --models local_qwen --datasets exam_gen_0_shot --debug  --num-prompts 1
-#ais_bench --models common_gateway --datasets task_101_suite --debug --num-prompts 1
+
+#ais_bench --models common_gateway --datasets task_1_suite  -num-prompts 1
 
 
+#ais_bench --models common_gateway --datasets task_1_suite  --debug --num-prompts 1
 
-ais_bench --models common_gateway --datasets task_107_suite  --debug --num-prompts 4
 
+#全流程
+#ais_bench --models common_gateway --datasets task_1_suite task_34_suite task_36_suite task_43_suite task_44_suite task_60_suite task_101_suite task_102_suite --debug --max-num-workers 5
 
+#重推理
+#ais_bench --mode eval \
+#  --reuse 20260806_003034 \
+#  --models common_gateway \
+#  --datasets task_101_suite task_102_suite \
+#  --debug \
+#  --max-num-workers 3
 
 
 # task_1_suite
@@ -49,4 +58,34 @@ ais_bench --models common_gateway --datasets task_107_suite  --debug --num-promp
 
 
 
+#ais_bench \
+#  --models common_gateway \
+#  --datasets \
+#    ot_3gpp_tsg \
+#    ot_oranbench \
+#    ot_sixg_bench \
+#    ot_srsranbench \
+#    ot_telelogs \
+#    ot_telemath \
+#    ot_teleqna \
+#    ot_teletables \
+#  --debug \
+#  --num-prompts 1
+
+ais_bench \
+  --models common_gateway \
+  --datasets \
+    task_201_suite \
+    task_202_suite \
+    task_203_suite \
+    task_204_suite \
+    task_205_suite \
+    task_206_suite \
+    task_207_suite \
+    task_208_suite \
+    task_209_suite \
+    task_210_suite \
+    task_211_suite \
+  --debug \
+  --num-prompts 1
 

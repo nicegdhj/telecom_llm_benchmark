@@ -232,8 +232,12 @@ def _parse_eval_result(work_dir: Path, suite: str) -> tuple:
 
     # 从 summary 解析准确率
     # CSV 格式：dataset,version,metric,mode,score[,score2...]
-    # 排除 parse_success_rate、field_* 等辅助指标，只保留主评分指标
-    _EXCLUDED_METRIC_PREFIXES = ("parse_success_rate", "field_")
+    # 排除解析率、字段得分、幻觉率等辅助指标，只保留主评分指标
+    _EXCLUDED_METRIC_PREFIXES = (
+        "parse_success_rate",
+        "field_",
+        "hallucination_rate",
+    )
     for summary_path in work_dir.glob("summary/summary_*.txt"):
         try:
             text = summary_path.read_text(encoding="utf-8")

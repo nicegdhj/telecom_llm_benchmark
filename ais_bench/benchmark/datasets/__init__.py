@@ -62,3 +62,4 @@ from ais_bench.benchmark.datasets.identity_exploration import * # noqa: F401, F4
 from ais_bench.benchmark.datasets.exam_dataset import * # noqa: F401, F403
 from ais_bench.benchmark.datasets.alarm_data import * # noqa: F401, F403
 from ais_bench.benchmark.datasets.expert_qa import *
+from ais_bench.benchmark.datasets.ot_full import *  # noqa: F401, F403

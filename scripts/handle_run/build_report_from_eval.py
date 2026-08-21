@@ -9,7 +9,11 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-_EXCLUDED_METRIC_PREFIXES = ("parse_success_rate", "field_")
+_EXCLUDED_METRIC_PREFIXES = (
+    "parse_success_rate",
+    "field_",
+    "hallucination_rate",
+)
 
 
 def parse_summary(summary_dir: Path):

@@ -295,15 +295,13 @@ if [[ "$RUN_MODE" == "infer" ]] || [[ "$RUN_MODE" == "all" ]]; then
             --model "${MODEL_NAME}" \
             --concurrency "${CONCURRENCY}" \
             --model-config "${MODEL_CONFIG}" \
-            --tasks 105 106 107
-#            --tasks 1 34 36 43 44 60 101 102 105 106 \
-#            --generic-datasets \
-#                alarm_data_gen_0_shot \
-#                tele_exam_gen_0_shot \
-#                tele_exam_gen_0_shot_str \
-#                opseval_gen_0_shot \
-#                identity_gen_0_shot \
-#                exam_gen_0_shot
+            --tasks 1 34 36 43 44 60 101 102 \
+            --generic-datasets \
+                tele_exam_gen_0_shot \
+                tele_exam_gen_0_shot_str \
+                opseval_gen_0_shot \
+                identity_gen_0_shot \
+                exam_gen_0_shot
 #            --tasks 1 34 36 43 44 60 101 102 \
 #            --generic-datasets \
 #                alarm_data_gen_0_shot \

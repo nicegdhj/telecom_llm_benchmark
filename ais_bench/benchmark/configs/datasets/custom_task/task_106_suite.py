@@ -1,4 +1,4 @@
-from ais_bench.benchmark.openicl.icl_prompt_template import PromptTemplate
+from ais_bench.benchmark.openicl.icl_prompt_template.task_106_prompt_template import Task106PromptTemplate
 from ais_bench.benchmark.openicl.icl_retriever import ZeroRetriever
 from ais_bench.benchmark.openicl.icl_inferencer import GenInferencer
 from ais_bench.benchmark.datasets.custom import CustomDataset
@@ -52,22 +52,21 @@ SYSTEM_INSTRUCTION = """接下来我会给你发若干个文本，请你从我�
     师傅名字:文本中出现的师傅、人员姓名或派发对象名称
 
     ## 注意事项
-    历史中的账号信息也需要提取，如果有重复的，以最新输入的为准。
-    如果涉及到多个业务类别，优先选择文本的第一个。
-    请注意用户输入可能存在同义词或错别字，请注意识别提取到相关类别。
-    如果用户只是含糊地提到了"XX码”、"码"等词语，而没有明确说明是什么码，请选择暂不确定。
-    请将结果以dict格式返回,不要返回其他任何信息。格式样例{"业务类别":"","信息提取":{}}
-    请确保你返回是一个没有语法错误的完整python dict"""
+
+    1.如果用户只是含糊地提到了"XX码”、"码"等词语，而没有明确说明是什么码，只有账号、无法判断具体业务->暂不确定
+    2.明确不属于已有业务类别 → 不支持该业务
+    3.“派我、转我、领单”且对象是“我” → 装维主动领单,派给具体手机号或具体师傅 → 工单派发
+    4.如果涉及到多个业务类别，优先选择文本的第一个。
+    5.请注意用户输入可能存在同义词或错别字，请注意识别提取到相关类别。
+
+    请将结果以dict格式返回,不要返回其他任何信息。格式样例{"业务类别":"","信息提取":{}} 请确保你返回是一个没有语法错误的完整python dict"""
 
 task_106_reader_cfg = dict(input_columns=["input"], output_column="output")
 
 task_106_infer_cfg = dict(
     prompt_template=dict(
-        type=PromptTemplate,
-        template=dict(
-            begin=[dict(role="SYSTEM", fallback_role="HUMAN", prompt=SYSTEM_INSTRUCTION)],
-            round=[dict(role="HUMAN", prompt="{input}"), dict(role="BOT", prompt="")],
-        ),
+        type=Task106PromptTemplate,
+        template=SYSTEM_INSTRUCTION,
     ),
     retriever=dict(type=ZeroRetriever),
     inferencer=dict(type=GenInferencer),

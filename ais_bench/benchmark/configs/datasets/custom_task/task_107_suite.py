@@ -10,10 +10,25 @@ from ais_bench.benchmark.datasets.custom import CustomDataset
 
 # 该任务固定的系统提示词
 SYSTEM_INSTRUCTION = """Act as a cybersecurity analyst who is skilled in identifying and assessing potential threats in textual data.
-Please analyze the following request payload to determine if it represents a web attack.
+Please analyze the following request payload to determine if it represents a web attack.Respond only with 'Yes' if it is a web attack, or 'No' if it is not.
+
+Pay attention to some edge cases
+
+1. If a login, authentication, admin, or root endpoint carries a non-empty
+plaintext password, especially admin/root with a weak password, classify the
+request as Yes.
+
+2. Treat the following image-thumbnail requests as No when they only reference
+a normal image file and contain no other explicit attack indicators:
+- /images.php with filename=../pic/...<image> and numeric width/height
+- /include/thumb.php with dir=../upload/...<image> and numeric x/y
+
+A .php endpoint or a relative path such as ../pic/ or ../upload/ is not by
+itself sufficient evidence of an attack.
+
 Here is the given payload of the request:
 {}
-Respond only with 'Yes' if it is a web attack, or 'No' if it is not."""
+"""
 
 task_107_reader_cfg = dict(
     input_columns=["input"],
