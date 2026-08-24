@@ -15,14 +15,35 @@ SUPPORTED_MODES = {"mcq", "json_label", "plain"}
 
 @TEXT_POSTPROCESSORS.register_module("telelogs_postprocess")
 def telelogs_postprocess(text):
+    # 优先从 JSON 预测的 root_cause/root_case 字段提取唯一的 C 标签（如 "C4" 或 "C4: ..."）。
+    # 推理文本中会反复引用 C1~C8，若对全文本做正则，会命中多个候选而全部判空。
     candidates = []
-    patterns = [
-        r"\\boxed\s*\{\s*C?([0-9]+)\s*\}",
-        r"(?:答案|answer)\s*[:：]?\s*C?([0-9]+)\b",
-        r"(?<![A-Za-z0-9])C([0-9]+)(?![A-Za-z0-9])",
-    ]
-    for pattern in patterns:
-        candidates.extend(re.findall(pattern, str(text), flags=re.IGNORECASE))
+    root_value = None
+    try:
+        parsed = json.loads(str(text))
+        if isinstance(parsed, dict):
+            for key in ("root_cause", "root_case"):
+                if key in parsed:
+                    root_value = parsed[key]
+                    break
+    except (json.JSONDecodeError, TypeError, ValueError):
+        pass
+
+    if root_value is not None:
+        candidates = re.findall(
+            r"(?<![A-Za-z0-9])C([0-9]+)(?![A-Za-z0-9])",
+            str(root_value),
+            flags=re.IGNORECASE,
+        )
+    else:
+        patterns = [
+            r"\\boxed\s*\{\s*C?([0-9]+)\s*\}",
+            r"(?:答案|answer)\s*[:：]?\s*C?([0-9]+)\b",
+            r"(?<![A-Za-z0-9])C([0-9]+)(?![A-Za-z0-9])",
+        ]
+        for pattern in patterns:
+            candidates.extend(re.findall(pattern, str(text), flags=re.IGNORECASE))
+
     if any(candidate not in {str(index) for index in range(1, 9)} for candidate in candidates):
         return ""
     unique = set(candidates)
