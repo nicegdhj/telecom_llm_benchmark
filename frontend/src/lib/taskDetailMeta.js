@@ -441,6 +441,319 @@ export const TASK_DETAIL_META = {
 
   // ── 垂类自定义任务 ───────────────────────────────────────────────────
 
+  // ── 公开通信题库（OT） ───────────────────────────────────────────────
+
+  "ot_3gpp_tsg": {
+    format: {
+      type: "JSONL",
+      desc: "3GPP 技术文档工作组分类任务，每条数据包含技术文本和目标工作组。",
+      fields: { question: "待分类的 3GPP 技术文档文本", answer: "工作组名称，如 SA4" },
+    },
+    demo: {
+      input: { question: "从 3GPP 技术文档内容判断其所属工作组。", answer: "SA4" },
+      output: '{"WORKING GROUP": "SA4"}',
+    },
+    accuracy: {
+      formula: "Accuracy = N_correct / N_total × 100%",
+      desc: "JsonFieldEvaluator 对模型 JSON 中的 WORKING GROUP 字段进行精确匹配。",
+      example: "100 条样本中工作组判断正确 82 条 → Accuracy = 82.0%",
+    },
+    aisBench: { suite: "ot_3gpp_tsg", evalType: "3GPP 工作组分类（JSON 字段匹配）", shot: "0-shot", note: "数据路径 data/ot-full/3gpp_tsg/test-00000-of-00001.jsonl" },
+  },
+
+  "ot_oranbench": {
+    format: {
+      type: "JSONL",
+      desc: "O-RAN 专业知识选择题，覆盖网络切片、互操作和无线接入网场景。",
+      fields: { question: "题目", choices: "候选选项数组", answer: "正确选项下标" },
+    },
+    demo: {
+      input: { question: "Which of the following is an O-RAN use case?", choices: ["Alarm query", "Network slicing", "QoS optimization", "Interoperability testing"], answer: 3 },
+      output: "D",
+    },
+    accuracy: {
+      formula: "Accuracy = N_correct / N_total × 100%",
+      desc: "AccEvaluator 结合选项后处理，将模型输出的 A/B/C/D/E 与标准选项进行匹配。",
+      example: "200 条样本中答对 156 条 → Accuracy = 78.0%",
+    },
+    aisBench: { suite: "ot_oranbench", evalType: "O-RAN 单项选择", shot: "0-shot", note: "数据路径 data/ot-full/oranbench/test-00000-of-00001.jsonl" },
+  },
+
+  "ot_sixg_bench": {
+    format: {
+      type: "JSONL",
+      desc: "6G 网络与智能通信场景选择题，包含复杂约束下的策略判断。",
+      fields: { question: "场景题目", choices: "候选选项数组", answer: "正确选项下标" },
+    },
+    demo: {
+      input: { question: "Which option best satisfies the future network constraints?", choices: ["Option 1", "Option 2", "Option 3", "Option 4"], answer: 2 },
+      output: "C",
+    },
+    accuracy: {
+      formula: "Accuracy = N_correct / N_total × 100%",
+      desc: "AccEvaluator 将模型输出的选项字母与标准答案下标进行精确匹配。",
+      example: "100 条样本中答对 73 条 → Accuracy = 73.0%",
+    },
+    aisBench: { suite: "ot_sixg_bench", evalType: "6G 场景选择题", shot: "0-shot", note: "数据路径 data/ot-full/sixg_bench/test-00000-of-00001.jsonl" },
+  },
+
+  "ot_srsranbench": {
+    format: {
+      type: "JSONL",
+      desc: "srsRAN 开源 5G 软件无线接入网知识选择题。",
+      fields: { question: "srsRAN 技术问题", choices: "候选选项数组", answer: "正确选项下标" },
+    },
+    demo: {
+      input: { question: "What is the purpose of the srsdu_base library?", choices: ["Base library for srsRAN", "DU applications", "DPDK", "E2AP ASN.1"], answer: 0 },
+      output: "A",
+    },
+    accuracy: {
+      formula: "Accuracy = N_correct / N_total × 100%",
+      desc: "AccEvaluator 将模型输出的选项字母与标准答案下标进行精确匹配。",
+      example: "300 条样本中答对 249 条 → Accuracy = 83.0%",
+    },
+    aisBench: { suite: "ot_srsranbench", evalType: "srsRAN 技术选择题", shot: "0-shot", note: "数据路径 data/ot-full/srsranbench/test-00000-of-00001.jsonl" },
+  },
+
+  "ot_telelogs": {
+    format: {
+      type: "JSONL",
+      desc: "5G 无线网络路测与工程参数分析任务，要求识别吞吐下降的主要原因。",
+      fields: { question: "路测数据、工程参数和分析要求", answer: "根因选项编号，如 C1" },
+    },
+    demo: {
+      input: { question: "分析路测数据，判断吞吐下降的最可能根因并将编号放入 \\boxed{}。", answer: "C1" },
+      output: "\\boxed{C1}",
+    },
+    accuracy: {
+      formula: "Accuracy = N_correct / N_total × 100%",
+      desc: "专用后处理器提取模型输出的根因编号，再由 AccEvaluator 与标准答案精确匹配。",
+      example: "100 条样本中根因判断正确 76 条 → Accuracy = 76.0%",
+    },
+    aisBench: { suite: "ot_telelogs", evalType: "5G 路测根因分析", shot: "0-shot", note: "数据路径 data/ot-full/telelogs/test-00000-of-00001.jsonl；要求输出根因编号" },
+  },
+
+  "ot_telemath": {
+    format: {
+      type: "JSONL",
+      desc: "通信与工程数学推理题，包含概率统计等专业数学问题。",
+      fields: { question: "数学问题", answer: "数值或数学表达式标准答案", category: "题目类别" },
+    },
+    demo: {
+      input: { question: "Determine the expected number of items sold daily.", answer: 233.3333333333, category: "Probability and Statistics" },
+      output: "\\boxed{233.3333333333}",
+    },
+    accuracy: {
+      formula: "Accuracy = N_correct / N_total × 100%",
+      desc: "MATEvaluator 从模型回答中提取最终数学答案，并判断其与标准答案是否等价。",
+      example: "100 条数学题中等价答案 68 条 → Accuracy = 68.0%",
+    },
+    aisBench: { suite: "ot_telemath", evalType: "通信数学推理（数学等价匹配）", shot: "0-shot", note: "数据路径 data/ot-full/telemath/test-00000-of-00001.jsonl；要求将最终答案放入 \\boxed{}" },
+  },
+
+  "ot_teleqna": {
+    format: {
+      type: "JSONL",
+      desc: "基于 3GPP 规范的通信领域选择题。",
+      fields: { question: "3GPP 规范问题", choices: "候选选项数组", answer: "正确选项下标", subject: "题目主题" },
+    },
+    demo: {
+      input: { question: "What is the purpose of a 3GPP service operation?", choices: ["Configure", "Stop mapping", "Supply data", "Fetch data"], answer: 1, subject: "Standards specifications" },
+      output: "B",
+    },
+    accuracy: {
+      formula: "Accuracy = N_correct / N_total × 100%",
+      desc: "AccEvaluator 将模型输出的选项字母与标准答案下标进行精确匹配。",
+      example: "500 条样本中答对 405 条 → Accuracy = 81.0%",
+    },
+    aisBench: { suite: "ot_teleqna", evalType: "3GPP 规范选择题", shot: "0-shot", note: "数据路径 data/ot-full/teleqna/test-00000-of-00001.jsonl" },
+  },
+
+  "ot_teletables": {
+    format: {
+      type: "JSONL",
+      desc: "基于 3GPP 技术文档表格的通信知识问答选择题。",
+      fields: { question: "问题", choices: "候选选项数组", answer: "正确选项下标", table: "表格关联信息" },
+    },
+    demo: {
+      input: { question: "What is the number of beams used in the simulation?", choices: ["6 beams", "3 beams", "4 beams", "2 beams", "5 beams"], answer: 2, table_title: "Simulation assumptions" },
+      output: "C",
+    },
+    accuracy: {
+      formula: "Accuracy = N_correct / N_total × 100%",
+      desc: "AccEvaluator 将模型输出的选项字母与标准答案下标进行精确匹配。",
+      example: "400 条样本中答对 332 条 → Accuracy = 83.0%",
+    },
+    aisBench: { suite: "ot_teletables", evalType: "3GPP 表格问答选择题", shot: "0-shot", note: "数据路径 data/ot-full/teletables/test-00000-of-00001.jsonl" },
+  },
+
+  // ── 专业题库任务 ─────────────────────────────────────────────────────
+
+  "task_201_suite": {
+    format: {
+      type: "JSONL",
+      desc: "资源管理领域知识问答，模型根据问题生成专业回答。",
+      fields: { input: "资源管理问题", output: "参考答案" },
+    },
+    demo: { input: { input: "浙江资源中心的登录网址" }, output: "https://rmc.oss.zj.chinamobile.com/" },
+    accuracy: {
+      formula: "Score = Σ judge_score_i / N_total",
+      desc: "TelecomLLMJudgeEvaluator 依据事实准确性、专业性和完整性对回答进行语义评分。",
+      example: "逐条由 LLM 裁判评分后，取全量样本平均分作为任务得分。",
+    },
+    aisBench: { suite: "task_201_suite", evalType: "资源管理知识问答（LLM 裁判）", shot: "0-shot", note: "数据文件 data/custom_task/task_201.jsonl；需配置打分模型" },
+  },
+
+  "task_202_suite": {
+    format: {
+      type: "JSONL",
+      desc: "传输网领域知识问答，覆盖割接审批、网络维护等专业知识。",
+      fields: { input: "传输网专业问题", output: "参考答案" },
+    },
+    demo: { input: { input: "割接审批的权限" }, output: "按割接重要程度分级审批，A/B/C/D 类分别由对应层级单位或负责人审批。" },
+    accuracy: {
+      formula: "Score = Σ judge_score_i / N_total",
+      desc: "TelecomLLMJudgeEvaluator 对回答的事实准确性、专业性和完整性进行语义评分。",
+      example: "全量回答经 LLM 裁判评分后取平均分。",
+    },
+    aisBench: { suite: "task_202_suite", evalType: "传输网知识问答（LLM 裁判）", shot: "0-shot", note: "数据文件 data/custom_task/task_202.jsonl；需配置打分模型" },
+  },
+
+  "task_203_suite": {
+    format: {
+      type: "JSONL",
+      desc: "代维领域通信维护知识选择与问答任务。",
+      fields: { input: "代维专业问题或选择题", output: "参考答案" },
+    },
+    demo: { input: { input: "传输线路与传输设备的维护界面以什么为界？" }, output: "A。以进局的第一个 ODF 架上的连接器为界。" },
+    accuracy: {
+      formula: "Score = Σ judge_score_i / N_total",
+      desc: "TelecomLLMJudgeEvaluator 对模型回答与参考答案的语义一致性进行评分。",
+      example: "逐条裁判评分后取任务平均分。",
+    },
+    aisBench: { suite: "task_203_suite", evalType: "代维知识问答（LLM 裁判）", shot: "0-shot", note: "数据文件 data/custom_task/task_203.jsonl；需配置打分模型" },
+  },
+
+  "task_204_suite": {
+    format: {
+      type: "JSONL",
+      desc: "个人业务领域知识问答，覆盖运维智能网等业务场景。",
+      fields: { input: "个人业务专业问题", output: "参考答案" },
+    },
+    demo: { input: { input: "运维智能网时需要重点关注哪些内容？" }, output: "重点关注平台纳管、局数据核查、工单管理、投诉处理及相关设备和接口规范。" },
+    accuracy: {
+      formula: "Score = Σ judge_score_i / N_total",
+      desc: "TelecomLLMJudgeEvaluator 从事实准确性、专业性和回答完整性三个维度进行语义评价。",
+      example: "全量样本裁判评分的平均值作为任务得分。",
+    },
+    aisBench: { suite: "task_204_suite", evalType: "个人业务知识问答（LLM 裁判）", shot: "0-shot", note: "数据文件 data/custom_task/task_204.jsonl；需配置打分模型" },
+  },
+
+  "task_205_suite": {
+    format: {
+      type: "JSONL",
+      desc: "核心网领域知识问答，覆盖虚拟化网元可靠性等专业知识。",
+      fields: { input: "核心网专业问题", output: "参考答案" },
+    },
+    demo: { input: { input: "虚拟化网元可靠性测试应包括哪些内容？" }, output: "应包括 VNF 自身可靠性测试，以及 DC 内和 DC 间 VNF 级故障下的业务可靠性验证。" },
+    accuracy: {
+      formula: "Score = Σ judge_score_i / N_total",
+      desc: "TelecomLLMJudgeEvaluator 对回答内容进行语义一致性和专业性评分。",
+      example: "逐条评分后取全量样本平均分。",
+    },
+    aisBench: { suite: "task_205_suite", evalType: "核心网知识问答（LLM 裁判）", shot: "0-shot", note: "数据文件 data/custom_task/task_205.jsonl；需配置打分模型" },
+  },
+
+  "task_206_suite": {
+    format: {
+      type: "JSONL",
+      desc: "基础保障领域专业知识选择题，要求回答选项并给出必要解析。",
+      fields: { input: "基础保障专业题目及选项", output: "参考答案与解析" },
+    },
+    demo: { input: { input: "三相桥式全控整流电路，要求触发脉冲的间隔为（  ）？" }, output: "正确答案：A.60°" },
+    accuracy: {
+      formula: "Score = Σ judge_score_i / N_total",
+      desc: "TelecomLLMJudgeEvaluator 综合判断选项结论、专业解释和回答完整性。",
+      example: "全量样本经 LLM 裁判评分后取平均分。",
+    },
+    aisBench: { suite: "task_206_suite", evalType: "基础保障知识问答（LLM 裁判）", shot: "0-shot", note: "数据文件 data/custom_task/task_206.jsonl；需配置打分模型" },
+  },
+
+  "task_207_suite": {
+    format: {
+      type: "JSONL",
+      desc: "监控排障领域知识问答，覆盖监控岗位技能和故障处置等内容。",
+      fields: { input: "监控排障专业问题", output: "参考答案" },
+    },
+    demo: { input: { input: "监控岗位技能分为哪几大类？" }, output: "故障处置、应急保障、专业技能、日常事务四大类。" },
+    accuracy: {
+      formula: "Score = Σ judge_score_i / N_total",
+      desc: "TelecomLLMJudgeEvaluator 评价答案的事实覆盖、专业准确性和表述完整性。",
+      example: "逐条评分后取任务平均分。",
+    },
+    aisBench: { suite: "task_207_suite", evalType: "监控排障知识问答（LLM 裁判）", shot: "0-shot", note: "数据文件 data/custom_task/task_207.jsonl；需配置打分模型" },
+  },
+
+  "task_208_suite": {
+    format: {
+      type: "JSONL",
+      desc: "网络投诉与现场测试领域知识问答，覆盖信息采集和投诉处理要求。",
+      fields: { input: "网络投诉或现场测试问题", output: "参考答案" },
+    },
+    demo: { input: { input: "现场测试前要采集的基本信息内容有哪些？" }, output: "用户信息、投诉类型和描述、地址及时间、终端信息和可接待时间等。" },
+    accuracy: {
+      formula: "Score = Σ judge_score_i / N_total",
+      desc: "TelecomLLMJudgeEvaluator 对关键知识点覆盖、专业准确性和回答完整性进行评分。",
+      example: "全量样本裁判评分后取平均分。",
+    },
+    aisBench: { suite: "task_208_suite", evalType: "网络投诉知识问答（LLM 裁判）", shot: "0-shot", note: "数据文件 data/custom_task/task_208.jsonl；需配置打分模型" },
+  },
+
+  "task_209_suite": {
+    format: {
+      type: "JSONL",
+      desc: "个人业务意图识别任务，要求从用户请求中识别意图并抽取实体。",
+      fields: { input: "用户请求", output: "JSON：intent、entities、confidence" },
+    },
+    demo: { input: { input: "帮我查一下智能网最近的运行情况怎么样" }, output: '{"intent":"data_query","entities":{"platform":"智能网"},"confidence":0.88}' },
+    accuracy: {
+      formula: "Accuracy = N_correct / N_total × 100%",
+      desc: "JsonFieldEvaluator 仅对 intent 字段进行精确匹配；entities 和 confidence 字段保留但不计入主准确率。",
+      example: "100 条样本中 intent 正确 84 条 → Accuracy = 84.0%",
+    },
+    aisBench: { suite: "task_209_suite", evalType: "个人业务意图识别（JSON 字段匹配）", shot: "0-shot", note: "数据文件 data/custom_task/task_209.jsonl；intent 权重 1，其余字段权重 0" },
+  },
+
+  "task_210_suite": {
+    format: {
+      type: "JSONL",
+      desc: "核心网投诉分类任务，要求输出分类结果和对应分类标号。",
+      fields: { input: "投诉工单及投诉内容", output: "JSON：分类结果、分类标号" },
+    },
+    demo: { input: { input: "投诉内容：浮标没有数据回传，需要 seq 查询" }, output: '{"分类结果":"非语音类","分类标号":"8"}' },
+    accuracy: {
+      formula: "Accuracy = N_correct / N_total × 100%",
+      desc: "JsonFieldEvaluator 对分类结果和分类标号进行严格匹配，两个字段均正确才计为正确。",
+      example: "100 条工单中两个字段均正确 79 条 → Accuracy = 79.0%",
+    },
+    aisBench: { suite: "task_210_suite", evalType: "核心网投诉分类（JSON 双字段匹配）", shot: "0-shot", note: "数据文件 data/custom_task/task_210.jsonl；分类结果与分类标号均参与评分" },
+  },
+
+  "task_211_suite": {
+    format: {
+      type: "JSONL",
+      desc: "监控排障意图识别任务，要求从用户输入中选择最匹配的意图名称。",
+      fields: { input: "带意图选项的用户请求", output: "标准意图名称" },
+    },
+    demo: { input: { input: "帮我查一下现在监控室有没有在处置的重大事件" }, output: "信息查询" },
+    accuracy: {
+      formula: "Accuracy = N_correct / N_total × 100%",
+      desc: "AccEvaluator 对模型输出的意图名称进行精确匹配。",
+      example: "100 条样本中意图判断正确 86 条 → Accuracy = 86.0%",
+    },
+    aisBench: { suite: "task_211_suite", evalType: "监控排障意图识别（精确匹配）", shot: "0-shot", note: "数据文件 data/custom_task/task_211.jsonl；AccEvaluator 精确匹配意图名称" },
+  },
+
   "task_1_suite": {
     format: {
       type: "JSONL",
