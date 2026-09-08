@@ -41,6 +41,7 @@ services:
       - EVAL_BACKEND_WORKSPACE_DIR=${WORKSPACE_DIR}
       - EVAL_BACKEND_BACKEND_DATA_DIR=/opt/eval_backend_data
       - EVAL_BACKEND_CODE_DIR=${WORKSPACE_DIR}/code
+      - EVAL_BACKEND_MAAS_STAT_URL=${EVAL_BACKEND_MAAS_STAT_URL:-http://188.108.11.94:31567/model/stat/query}
     networks:
       - score-net
 
