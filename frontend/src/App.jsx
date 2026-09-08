@@ -15,6 +15,7 @@ import { UsersPage } from './features/users/UsersPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { GuidePage } from './pages/GuidePage';
 import { NotFoundPage } from './pages/NotFoundPage';
+import { TokenUsagePage } from './features/tokenUsage/TokenUsagePage';
 
 const router = createBrowserRouter([
   {
@@ -37,6 +38,7 @@ const router = createBrowserRouter([
       { path: 'batches/:id', element: <BatchDetailPage /> },
       { path: 'jobs', element: <JobsPage /> },
       { path: 'analytics', element: <AnalyticsPage /> },
+      { path: 'token-usage', element: <TokenUsagePage /> },
       {
         path: 'users',
         element: (

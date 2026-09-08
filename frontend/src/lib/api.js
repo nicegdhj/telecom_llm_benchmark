@@ -192,6 +192,13 @@ export const api = {
       return { blob, filename: m ? m[1] : 'export.zip' };
     },
   },
+
+  tokenUsage: {
+    query: (data) => request('/token-usage/query', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  },
 };
 
 // Transform helper: flatten BatchReport rows into matrix

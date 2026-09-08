@@ -1,7 +1,7 @@
 import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard, Cpu, Gavel, ListChecks, FolderKanban,
-  Activity, Settings, Users, LogOut, BarChart3, BookOpen
+  Activity, Settings, Users, LogOut, BarChart3, BookOpen, Gauge
 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import { api } from '../../lib/api';
@@ -16,6 +16,7 @@ const navItems = [
   { to: '/batches', icon: FolderKanban, label: '测评管理' },
   { to: '/jobs', icon: Activity, label: '执行记录' },
   { to: '/analytics', icon: BarChart3, label: '测评分析' },
+  { to: '/token-usage', icon: Gauge, label: 'Token用量查询' },
   { to: '/settings', icon: Settings, label: '设置' },
 ];
 
