@@ -233,8 +233,8 @@ export function TokenUsagePage() {
               <p className="text-xs text-gray-400 mt-0.5">数据均为 MaaS 接口原始返回，平台不做求和或平均</p>
             </div>
             <div className="flex flex-wrap gap-2">
-              {submittedNames.map((item) => (
-                <span key={`${item.label}-${item.value}`} className="inline-flex items-center gap-1.5 rounded-md bg-blue-50 px-2.5 py-1 text-xs text-primary-700">
+              {submittedNames.map((item, index) => (
+                <span key={`${item.label}-${item.value}-${index}`} className="inline-flex items-center gap-1.5 rounded-md bg-blue-50 px-2.5 py-1 text-xs text-primary-700">
                   <strong className="font-semibold">{item.label || '未命名'}</strong>
                   <span className="font-mono text-[10px] text-primary-500">{item.value}</span>
                 </span>
