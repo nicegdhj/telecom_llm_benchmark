@@ -110,6 +110,8 @@ class MaaSAPI(BaseAPIModel):
             stream=self.stream,
             messages=messages,
         )
+        if args.get("tools"):
+            request_body["tools"] = args["tools"]
         if self.generation_kwargs and 'enable_thinking' in self.generation_kwargs:
             enable_thinking = self.generation_kwargs['enable_thinking']
             new_messages = []
