@@ -1,4 +1,5 @@
 from datetime import datetime
+from pathlib import Path
 
 import httpx
 import pytest
@@ -9,6 +10,15 @@ from backend.app.services.token_usage import (
     fetch_maas_stat,
     split_time_range,
 )
+
+
+ROOT = Path(__file__).resolve().parents[2]
+
+
+def test_backend_docker_image_installs_httpx_runtime_dependency():
+    dockerfile = (ROOT / "deploy_docker/backend/Dockerfile").read_text(encoding="utf-8")
+
+    assert "httpx" in dockerfile
 
 
 def test_split_day_keeps_partial_first_and_last_intervals():

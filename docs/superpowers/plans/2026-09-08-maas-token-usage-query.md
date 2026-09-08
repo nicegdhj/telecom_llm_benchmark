@@ -19,6 +19,7 @@
 - Modify `backend/app/schemas.py`: request and response models.
 - Modify `backend/app/main.py`: register the router.
 - Modify `backend/pyproject.toml`: make HTTPX a runtime dependency.
+- Modify `deploy_docker/backend/Dockerfile`: install HTTPX in the production backend image, whose dependency list is explicit.
 - Create `frontend/src/features/tokenUsage/tokenUsageConfig.js`: default K-V Names and metric column metadata.
 - Create `frontend/src/features/tokenUsage/tokenUsageConfig.test.mjs`: dependency-free Node tests for defaults and columns.
 - Create `frontend/src/features/tokenUsage/TokenUsagePage.jsx`: query form and horizontally scrollable result table.
@@ -33,6 +34,7 @@
 - Create: `backend/tests/test_token_usage.py`
 - Create: `backend/app/services/token_usage.py`
 - Modify: `backend/pyproject.toml`
+- Modify: `deploy_docker/backend/Dockerfile`
 
 - [ ] **Step 1: Write failing segmentation tests**
 
@@ -137,10 +139,14 @@ pytest -q backend/tests/test_token_usage.py
 
 Expected: all service tests pass.
 
-- [ ] **Step 7: Commit service behavior**
+- [ ] **Step 7: Verify the production image includes HTTPX**
+
+Add a test that reads `deploy_docker/backend/Dockerfile` and requires `httpx` in its explicit `pip install` dependency list. Run the test once before editing the Dockerfile to verify it fails, then append `httpx` to that list and verify it passes.
+
+- [ ] **Step 8: Commit service behavior**
 
 ```bash
-git add backend/app/services/token_usage.py backend/tests/test_token_usage.py backend/pyproject.toml
+git add backend/app/services/token_usage.py backend/tests/test_token_usage.py backend/pyproject.toml deploy_docker/backend/Dockerfile
 git commit -m "feat: add MaaS token usage query service"
 ```
 
