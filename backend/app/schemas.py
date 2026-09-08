@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import Any, Literal
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class ModelCreate(BaseModel):
@@ -52,6 +52,26 @@ class ConnTestOut(BaseModel):
     latency_ms: int | None = None
     message: str
     reply: str | None = None
+
+
+class TokenUsageName(BaseModel):
+    label: str = ""
+    value: str
+
+
+class TokenUsageQueryIn(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    names: list[TokenUsageName] = Field(..., min_length=1)
+    start_time: datetime = Field(alias="startTime")
+    end_time: datetime = Field(alias="endTime")
+    granularity: Literal["hour", "day"] = "day"
+
+    @model_validator(mode="after")
+    def validate_time_range(self):
+        if self.end_time <= self.start_time:
+            raise ValueError("endTime 必须晚于 startTime")
+        return self
 
 
 class JudgeCreate(BaseModel):

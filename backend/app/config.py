@@ -12,6 +12,8 @@ class Settings(BaseSettings):
     worker_poll_interval_sec: float = 60.0
     default_job_concurrency: int = 6
     auth_token: str | None = None
+    maas_stat_url: str = "http://188.108.11.94:31567/model/stat/query"
+    maas_stat_timeout_sec: float = 120.0
 
     # 权限系统新增
     admin_username: str = "admin"

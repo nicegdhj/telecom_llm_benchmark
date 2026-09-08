@@ -14,6 +14,7 @@ from backend.app.routers import jobs as jobs_router
 from backend.app.routers import models as models_router
 from backend.app.routers import predictions as predictions_router
 from backend.app.routers import tasks as tasks_router
+from backend.app.routers import token_usage as token_usage_router
 from backend.app.services.session_cleanup import session_cleanup_loop
 from backend.app.services.worker import worker_loop
 
@@ -46,6 +47,7 @@ app.include_router(jobs_router.router)
 app.include_router(predictions_router.router)
 app.include_router(evaluations_router.router)
 app.include_router(analytics_router.router)
+app.include_router(token_usage_router.router)
 
 
 @app.get("/api/v1/health")

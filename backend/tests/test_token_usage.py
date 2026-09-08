@@ -123,3 +123,79 @@ async def test_collect_keeps_other_rows_when_one_interval_fails():
     assert result["rows"][0]["data"] == {"tokenUsage": 0}
     assert result["rows"][1]["error"] == "分段超时"
     assert result["summary"]["data"] == {"tokenUsage": 0}
+
+
+def test_token_usage_endpoint_requires_authentication(raw_client):
+    response = raw_client.post("/api/v1/token-usage/query", json={
+        "names": [{"label": "API A", "value": "name-a"}],
+        "startTime": "2026-09-01 00:00:00",
+        "endTime": "2026-09-02 00:00:00",
+        "granularity": "day",
+    })
+
+    assert response.status_code == 401
+
+
+def test_token_usage_endpoint_passes_values_and_returns_raw_results(client, monkeypatch):
+    captured = {}
+
+    async def fake_collect(names, start, end, granularity, query):
+        captured.update(names=names, start=start, end=end, granularity=granularity)
+        return {
+            "rows": [{
+                "startTime": "2026-09-01 00:00:00",
+                "endTime": "2026-09-02 00:00:00",
+                "data": {"tokenUsage": 10, "successRate": 98.2},
+            }],
+            "summary": {
+                "startTime": "2026-09-01 00:00:00",
+                "endTime": "2026-09-02 00:00:00",
+                "data": {"tokenUsage": 10, "successRate": 98.2},
+            },
+        }
+
+    monkeypatch.setattr("backend.app.routers.token_usage.collect_token_usage", fake_collect)
+    response = client.post("/api/v1/token-usage/query", json={
+        "names": [
+            {"label": " API A ", "value": " name-a "},
+            {"label": "API B", "value": "name-b"},
+            {"label": "空值", "value": "   "},
+        ],
+        "startTime": "2026-09-01 00:00:00",
+        "endTime": "2026-09-02 00:00:00",
+        "granularity": "day",
+    })
+
+    assert response.status_code == 200
+    assert captured == {
+        "names": ["name-a", "name-b"],
+        "start": datetime(2026, 9, 1, 0),
+        "end": datetime(2026, 9, 2, 0),
+        "granularity": "day",
+    }
+    body = response.json()
+    assert body["names"] == [
+        {"label": "API A", "value": "name-a"},
+        {"label": "API B", "value": "name-b"},
+    ]
+    assert body["summary"]["data"] == {"tokenUsage": 10, "successRate": 98.2}
+
+
+@pytest.mark.parametrize("payload", [
+    {
+        "names": [{"label": "空值", "value": "  "}],
+        "startTime": "2026-09-01 00:00:00",
+        "endTime": "2026-09-02 00:00:00",
+        "granularity": "day",
+    },
+    {
+        "names": [{"label": "API A", "value": "name-a"}],
+        "startTime": "2026-09-02 00:00:00",
+        "endTime": "2026-09-01 00:00:00",
+        "granularity": "day",
+    },
+])
+def test_token_usage_endpoint_rejects_invalid_query(client, payload):
+    response = client.post("/api/v1/token-usage/query", json=payload)
+
+    assert response.status_code == 422
