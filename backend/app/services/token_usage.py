@@ -7,6 +7,7 @@ import httpx
 
 
 MaaSQuery = Callable[[list[str], datetime, datetime], Awaitable[dict[str, Any]]]
+MAX_INTERVALS = 744
 
 
 class MaaSQueryError(RuntimeError):
@@ -26,6 +27,8 @@ def split_time_range(start: datetime, end: datetime, granularity: str):
     result = []
     cursor = start
     while cursor < end:
+        if len(result) >= MAX_INTERVALS:
+            raise ValueError(f"一次查询最多拆分 {MAX_INTERVALS} 个时间段")
         if granularity == "hour":
             boundary = cursor + timedelta(hours=1)
         else:

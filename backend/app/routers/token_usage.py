@@ -35,12 +35,15 @@ async def query_token_usage(
                 end,
             )
 
-        result = await collect_token_usage(
-            [item["value"] for item in names],
-            payload.start_time,
-            payload.end_time,
-            payload.granularity,
-            query,
-        )
+        try:
+            result = await collect_token_usage(
+                [item["value"] for item in names],
+                payload.start_time,
+                payload.end_time,
+                payload.granularity,
+                query,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     return {"names": names, **result}

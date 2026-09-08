@@ -163,6 +163,7 @@ services:
       - EVAL_BACKEND_CODE_DIR=${WORKSPACE_DIR}/code
       - EVAL_BACKEND_ADMIN_USERNAME=${EVAL_BACKEND_ADMIN_USERNAME:-admin}
       - EVAL_BACKEND_ADMIN_PASSWORD=${EVAL_BACKEND_ADMIN_PASSWORD:-}
+      - EVAL_BACKEND_MAAS_STAT_URL=${EVAL_BACKEND_MAAS_STAT_URL:-http://188.108.11.94:31567/model/stat/query}
     networks:
       - score-net
 
@@ -186,6 +187,9 @@ BACKEND_DATA_DIR=/opt/eval_backend_data
 # 首次启动初始化的管理员账号（建库后改动请到平台内修改）
 EVAL_BACKEND_ADMIN_USERNAME=admin
 EVAL_BACKEND_ADMIN_PASSWORD=change_me_please
+
+# MaaS Token 统计接口（Score 后端必须能访问该私域地址）
+EVAL_BACKEND_MAAS_STAT_URL=http://188.108.11.94:31567/model/stat/query
 
 # 说明：被测/打分模型的 IP/端口/密钥不在此处配置，
 #       部署后在 Web 界面「评测模型」「打分模型」中录入。

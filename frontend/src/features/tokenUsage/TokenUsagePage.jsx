@@ -99,6 +99,8 @@ export function TokenUsagePage() {
       return;
     }
 
+    setResult(null);
+    setSubmittedNames([]);
     query.mutate({
       names: effectiveNames,
       startTime: toApiTime(startTime),

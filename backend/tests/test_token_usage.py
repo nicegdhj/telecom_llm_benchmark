@@ -21,6 +21,13 @@ def test_backend_docker_image_installs_httpx_runtime_dependency():
     assert "httpx" in dockerfile
 
 
+def test_production_package_passes_maas_statistics_url():
+    script = (ROOT / "scripts/deploy_scripts/prod_all.sh").read_text(encoding="utf-8")
+
+    assert "EVAL_BACKEND_MAAS_STAT_URL=${EVAL_BACKEND_MAAS_STAT_URL" in script
+    assert "EVAL_BACKEND_MAAS_STAT_URL=http://188.108.11.94:31567/model/stat/query" in script
+
+
 def test_split_day_keeps_partial_first_and_last_intervals():
     start = datetime(2026, 8, 31, 10)
     end = datetime(2026, 9, 2, 14)
@@ -41,6 +48,15 @@ def test_split_hour_uses_one_hour_intervals():
         (datetime(2026, 9, 1, 11), datetime(2026, 9, 1, 12)),
         (datetime(2026, 9, 1, 12), datetime(2026, 9, 1, 13)),
     ]
+
+
+def test_split_rejects_more_than_744_intervals():
+    with pytest.raises(ValueError, match="744"):
+        split_time_range(
+            datetime(2026, 1, 1, 0),
+            datetime(2026, 2, 2, 0),
+            "hour",
+        )
 
 
 @pytest.mark.asyncio
@@ -207,5 +223,41 @@ def test_token_usage_endpoint_passes_values_and_returns_raw_results(client, monk
 ])
 def test_token_usage_endpoint_rejects_invalid_query(client, payload):
     response = client.post("/api/v1/token-usage/query", json=payload)
+
+    assert response.status_code == 422
+
+
+def test_token_usage_endpoint_rejects_too_many_names(client):
+    response = client.post("/api/v1/token-usage/query", json={
+        "names": [
+            {"label": f"API {index}", "value": f"name-{index}"}
+            for index in range(21)
+        ],
+        "startTime": "2026-09-01 00:00:00",
+        "endTime": "2026-09-02 00:00:00",
+        "granularity": "day",
+    })
+
+    assert response.status_code == 422
+
+
+def test_token_usage_endpoint_rejects_timezone_aware_values(client):
+    response = client.post("/api/v1/token-usage/query", json={
+        "names": [{"label": "API A", "value": "name-a"}],
+        "startTime": "2026-09-01T00:00:00+08:00",
+        "endTime": "2026-09-02T00:00:00+08:00",
+        "granularity": "day",
+    })
+
+    assert response.status_code == 422
+
+
+def test_token_usage_endpoint_rejects_more_than_744_intervals(client):
+    response = client.post("/api/v1/token-usage/query", json={
+        "names": [{"label": "API A", "value": "name-a"}],
+        "startTime": "2026-01-01 00:00:00",
+        "endTime": "2026-02-02 00:00:00",
+        "granularity": "hour",
+    })
 
     assert response.status_code == 422

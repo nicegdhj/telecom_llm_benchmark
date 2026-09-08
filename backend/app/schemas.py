@@ -55,20 +55,22 @@ class ConnTestOut(BaseModel):
 
 
 class TokenUsageName(BaseModel):
-    label: str = ""
-    value: str
+    label: str = Field(default="", max_length=100)
+    value: str = Field(..., max_length=200)
 
 
 class TokenUsageQueryIn(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
-    names: list[TokenUsageName] = Field(..., min_length=1)
+    names: list[TokenUsageName] = Field(..., min_length=1, max_length=20)
     start_time: datetime = Field(alias="startTime")
     end_time: datetime = Field(alias="endTime")
     granularity: Literal["hour", "day"] = "day"
 
     @model_validator(mode="after")
     def validate_time_range(self):
+        if self.start_time.utcoffset() is not None or self.end_time.utcoffset() is not None:
+            raise ValueError("时间不应包含时区，请使用平台本地时间")
         if self.end_time <= self.start_time:
             raise ValueError("endTime 必须晚于 startTime")
         return self

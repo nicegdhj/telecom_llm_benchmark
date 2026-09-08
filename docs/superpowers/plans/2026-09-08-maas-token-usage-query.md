@@ -238,6 +238,7 @@ The router must:
 - Require `viewer`, `operator`, or `admin`.
 - Trim labels and values and reject an empty effective Name list.
 - Reject `endTime <= startTime`.
+- Reject timezone-aware values, more than 20 Names, Name values longer than 200 characters, and queries that produce more than 744 intervals.
 - Create one `httpx.AsyncClient` with the configured timeout.
 - Pass a closure using `fetch_maas_stat()` into `collect_token_usage()`.
 - Return the normalized K-V list alongside `rows` and `summary`.
@@ -357,6 +358,7 @@ Implement `TokenUsagePage.jsx` with:
 - Exact MaaS values with display-only `%` and `ms` suffixes.
 - Per-row error text without inventing metric values.
 - Loading, empty, and query-level error states.
+- Clear the previous successful result immediately before a valid new query so a failed request cannot leave stale data visible.
 
 - [ ] **Step 5: Register route and navigation**
 
