@@ -40,6 +40,27 @@ TASK_META: dict[str, dict[str, str]] = {
     "task_105_suite": {"alias": "家庭支撑智能体-连续对话最终轮评测",           "category": "意图理解-多轮对话"},
     "task_106_suite": {"alias": "家庭支撑智能体-连续对话逐轮评测",             "category": "意图理解-多轮对话"},
     "task_107_suite": {"alias": "安全管理智能体-网络安全告警研判(binary_gpt)", "category": "意图理解-分类"},
+    # ── 公开通信题库 ────────────────────────────────────────────────
+    "ot_3gpp_tsg":    {"alias": "ot_3gpp_tsg",    "category": "公开通信题库"},
+    "ot_oranbench":   {"alias": "ot_oranbench",   "category": "公开通信题库"},
+    "ot_sixg_bench":  {"alias": "ot_sixg_bench",  "category": "公开通信题库"},
+    "ot_srsranbench": {"alias": "ot_srsranbench", "category": "公开通信题库"},
+    "ot_telelogs":    {"alias": "ot_telelogs",    "category": "公开通信题库"},
+    "ot_telemath":    {"alias": "ot_telemath",    "category": "公开通信题库"},
+    "ot_teleqna":     {"alias": "ot_teleqna",     "category": "公开通信题库"},
+    "ot_teletables":  {"alias": "ot_teletables",  "category": "公开通信题库"},
+    # ── 20260821 专业题库 ───────────────────────────────────────────
+    "task_201_suite": {"alias": "资源管理-知识理解", "category": "知识理解"},
+    "task_202_suite": {"alias": "传输网-知识理解", "category": "知识理解"},
+    "task_203_suite": {"alias": "代维-知识理解", "category": "知识理解"},
+    "task_204_suite": {"alias": "个人业务-知识理解", "category": "知识理解"},
+    "task_205_suite": {"alias": "核心网-知识理解", "category": "知识理解"},
+    "task_206_suite": {"alias": "基础保障-知识理解", "category": "知识理解"},
+    "task_207_suite": {"alias": "监控排障-知识理解", "category": "知识理解"},
+    "task_208_suite": {"alias": "网络投诉-知识理解", "category": "知识理解"},
+    "task_209_suite": {"alias": "个人业务-意图识别", "category": "意图识别"},
+    "task_210_suite": {"alias": "核心网-意图识别", "category": "意图识别"},
+    "task_211_suite": {"alias": "监控排障-意图识别", "category": "意图识别"},
 }
 
 
@@ -49,6 +70,12 @@ ALLOWED_TASK_KEYS: list[str] = [
     "task_1_suite", "task_34_suite", "task_36_suite", "task_43_suite",
     "task_44_suite", "task_60_suite", "task_101_suite", "task_102_suite",
     "task_105_suite", "task_106_suite", "task_107_suite",
+    # 新增公开通信题库与专业题库任务
+    "ot_3gpp_tsg", "ot_oranbench", "ot_sixg_bench", "ot_srsranbench",
+    "ot_telelogs", "ot_telemath", "ot_teleqna", "ot_teletables",
+    "task_201_suite", "task_202_suite", "task_203_suite", "task_204_suite",
+    "task_205_suite", "task_206_suite", "task_207_suite", "task_208_suite",
+    "task_209_suite", "task_210_suite", "task_211_suite",
     # 通用数据集（--generic-datasets 顺序）
     "alarm_data_gen_0_shot", "ceval_gen_0_shot_str", "mmlu_redux_gen_5_shot_str",
     "teledata_gen_0_shot", "gpqa_gen_0_shot_str", "bbh_gen_3_shot_cot_chat",
@@ -99,4 +126,25 @@ TASK_DATA_PATH: dict[str, str] = {
     "task_105_suite": "data/custom_task/task_105.jsonl",
     "task_106_suite": "data/custom_task/task_106.jsonl",
     "task_107_suite": "data/custom_task/task_107.jsonl",
+    # ── 公开通信题库 ──
+    "ot_3gpp_tsg":    "data/ot-full/3gpp_tsg/test-00000-of-00001.jsonl",
+    "ot_oranbench":   "data/ot-full/oranbench/test-00000-of-00001.jsonl",
+    "ot_sixg_bench":  "data/ot-full/sixg_bench/test-00000-of-00001.jsonl",
+    "ot_srsranbench": "data/ot-full/srsranbench/test-00000-of-00001.jsonl",
+    "ot_telelogs":    "data/ot-full/telelogs/test-00000-of-00001.jsonl",
+    "ot_telemath":    "data/ot-full/telemath/test-00000-of-00001.jsonl",
+    "ot_teleqna":     "data/ot-full/teleqna/test-00000-of-00001.jsonl",
+    "ot_teletables":  "data/ot-full/teletables/test-00000-of-00001.jsonl",
+    # ── 20260821 专业题库 ──
+    "task_201_suite": "data/custom_task/task_201.jsonl",
+    "task_202_suite": "data/custom_task/task_202.jsonl",
+    "task_203_suite": "data/custom_task/task_203.jsonl",
+    "task_204_suite": "data/custom_task/task_204.jsonl",
+    "task_205_suite": "data/custom_task/task_205.jsonl",
+    "task_206_suite": "data/custom_task/task_206.jsonl",
+    "task_207_suite": "data/custom_task/task_207.jsonl",
+    "task_208_suite": "data/custom_task/task_208.jsonl",
+    "task_209_suite": "data/custom_task/task_209.jsonl",
+    "task_210_suite": "data/custom_task/task_210.jsonl",
+    "task_211_suite": "data/custom_task/task_211.jsonl",
 }

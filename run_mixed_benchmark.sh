@@ -295,34 +295,35 @@ if [[ "$RUN_MODE" == "infer" ]] || [[ "$RUN_MODE" == "all" ]]; then
             --model "${MODEL_NAME}" \
             --concurrency "${CONCURRENCY}" \
             --model-config "${MODEL_CONFIG}" \
-            --tasks 1 34 36 43 44 60 101 102 \
+            --tasks 1 34 36 43 44 60 101 102 201 202 203 204 205 206 207 208 209 210 211 \
             --generic-datasets \
+                ot_3gpp_tsg \
+                ot_oranbench \
+                ot_sixg_bench \
+                ot_srsranbench \
+                ot_telelogs \
+                ot_telemath \
+                ot_teleqna \
+                ot_teletables \
+                alarm_data_gen_0_shot \
+                ceval_gen_0_shot_str \
+                mmlu_redux_gen_5_shot_str \
+                teledata_gen_0_shot \
+                gpqa_gen_0_shot_str \
+                bbh_gen_3_shot_cot_chat \
+                BFCL_gen_simple \
+                ifeval_0_shot_gen_str \
+                math500_gen_0_shot_cot_chat_prompt \
+                aime2025_gen_0_shot_chat_prompt \
+                telemath_gen_0_cot_shot \
+                teleqna_gen_0_shot \
+                tspec_gen_0_shot \
+                telequad_gen_0_shot \
                 tele_exam_gen_0_shot \
                 tele_exam_gen_0_shot_str \
                 opseval_gen_0_shot \
                 identity_gen_0_shot \
                 exam_gen_0_shot
-#            --tasks 1 34 36 43 44 60 101 102 \
-#            --generic-datasets \
-#                alarm_data_gen_0_shot \
-#                ceval_gen_0_shot_str \
-#                mmlu_redux_gen_5_shot_str \
-#                teledata_gen_0_shot \
-#                gpqa_gen_0_shot_str \
-#                bbh_gen_3_shot_cot_chat \
-#                BFCL_gen_simple \
-#                ifeval_0_shot_gen_str \
-#                math500_gen_0_shot_cot_chat_prompt \
-#                aime2025_gen_0_shot_chat_prompt \
-#                telemath_gen_0_cot_shot \
-#                teleqna_gen_0_shot \
-#                tspec_gen_0_shot \
-#                telequad_gen_0_shot \
-#                tele_exam_gen_0_shot \
-#                tele_exam_gen_0_shot_str \
-#                opseval_gen_0_shot \
-#                identity_gen_0_shot \
-#                exam_gen_0_shot
 
 
     INFER_RC=$?

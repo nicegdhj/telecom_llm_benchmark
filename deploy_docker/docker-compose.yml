@@ -34,6 +34,8 @@ services:
       # Workspace 路径在宿主机和容器内保持一致，
       # 这样后端执行 docker run -v 时，docker daemon 能正确解析宿主机路径
       - ${WORKSPACE_DIR}:${WORKSPACE_DIR}
+      # 本地启动脚本中的 workspace/code/ais_bench 软链指向项目源码，供后端种子扫描评测器配置
+      - ${PROJECT_DIR}/ais_bench:${PROJECT_DIR}/ais_bench:ro
       - ${BACKEND_DATA_DIR}:/opt/eval_backend_data
       # 挂载宿主机 docker socket，使后端能启动 ais_bench 容器
       - /var/run/docker.sock:/var/run/docker.sock

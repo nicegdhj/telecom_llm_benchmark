@@ -9,6 +9,7 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
+export PROJECT_DIR
 export WORKSPACE_DIR="$PROJECT_DIR/workspace"
 export BACKEND_DATA_DIR="$PROJECT_DIR/backend/backend_data"
 
