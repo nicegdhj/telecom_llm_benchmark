@@ -77,24 +77,22 @@ def parse_args():
     )
     parser.add_argument(
         "--model",
-        default=os.environ.get("LOCAL_MODEL_NAME", "qwen3-14b"),
-        help="推理模型名称，用于报告标识（默认读取 LOCAL_MODEL_NAME）",
+        required=True,
+        help="推理模型名称，用于报告标识",
     )
     parser.add_argument(
         "--concurrency",
         type=int,
-        default=int(os.environ.get("LOCAL_CONCURRENCY", "20")),
-        help="推理并发请求数，透传给 LOCAL_CONCURRENCY（默认 20）",
+        required=True,
+        help="推理并发请求数",
     )
     parser.add_argument(
         "--model-config",
         default="maas",
         choices=[
-            "maas",
-            "maas_private",
-            "bailian_qwen",
-            "bailian_qwen_no_stream",
+            "common_gateway",
             "local_qwen",
+            "maas_gateway",
         ],
         help="指定模型配置文件：maas=私域 MaaSAPI 等（默认 maas）",
     )
@@ -148,7 +146,9 @@ def validate_data_files(task_nums: list, data_dir: Path):
     missing = []
     for num in task_nums:
         p = data_dir / f"task_{num}.jsonl"
-        if not p.exists():
+        # 也支持目录结构：data/task_N/ 目录（内含多个 jsonl 文件）
+        p_dir = data_dir.parent / f"task_{num}"
+        if not p.exists() and not p_dir.is_dir():
             missing.append(str(p))
     if missing:
         print("❌ 以下自定义任务数据文件不存在，请检查 --data-dir 路径：")
@@ -174,6 +174,10 @@ def setup_data_symlink(data_dir: Path):
     default_dir.symlink_to(data_dir.resolve())
 
 
+def _ais_bench_work_dir(output_dir: Path, task_id: str) -> Path:
+    return output_dir / task_id / "_ais_bench_work"
+
+
 # ── 执行评测 ────────────────────────────────────────────────────────
 def run_evaluation(
     task_nums: list,
@@ -193,8 +197,8 @@ def run_evaluation(
     for dset in generic_datasets:
         queue.append((dset, dset, "generic"))
 
-    ais_bench_output = ROOT / "outputs" / "default"
-    # 每次评测前清理旧的 default 目录，避免历史结果占用磁盘
+    ais_bench_output = _ais_bench_work_dir(output_dir, task_id)
+    # 只清理当前任务的临时目录，避免并发任务互相删除产出
     if ais_bench_output.exists():
         shutil.rmtree(ais_bench_output)
     ais_bench_output.mkdir(parents=True, exist_ok=True)
@@ -230,6 +234,7 @@ def run_evaluation(
                 "--max-num-workers",
                 str(concurrency),
             ]
+        cmd += ["--work-dir", str(ais_bench_output)]
         # 若指定了 --num-prompts，追加给 ais_bench（debug 和并发模式均生效）
         if num_prompts is not None:
             cmd += ["--num-prompts", str(num_prompts)]
@@ -247,18 +252,32 @@ def run_evaluation(
         ais_bench_dir, num_samples = _find_infer_output(
             ais_bench_output, suite_name_pattern=suite, run_start_time=start_time
         )
+        # ais_bench CLI 在 warmup 失败等场景下仍可能 exit 0（异常被内部捕获），
+        # 因此真正的成功信号是：①子进程退出码=0 ②产出目录与样本数都存在。
+        # 任一缺失即视为 failed，避免下游 eval 拿到 timestamp=None 崩溃。
+        infer_ok = (
+            proc.returncode == 0
+            and ais_bench_dir is not None
+            and num_samples is not None
+            and num_samples > 0
+        )
         results.append(
             {
                 "task_name": task_name,
                 "type": task_type,
                 "suite": suite,
-                "status": "success" if proc.returncode == 0 else "failed",
+                "status": "success" if infer_ok else "failed",
                 "num_samples": num_samples,
                 "duration_sec": round(duration, 1),
                 "returncode": proc.returncode,
                 "timestamp": ais_bench_dir,
             }
         )
+        if not infer_ok:
+            print(
+                f"   ❌ 推理失败: returncode={proc.returncode}, "
+                f"timestamp={ais_bench_dir}, num_samples={num_samples}"
+            )
 
         # ── 逐任务清理：清理残留共享内存 + 搬运产出 + 强制 GC ──
         _cleanup_leaked_shm()
@@ -282,7 +301,7 @@ def _find_infer_output(
     """查找本次推理产出的时间戳目录和样本数。
 
     Args:
-        ais_bench_output: ais_bench 输出根目录（outputs/default/）
+        ais_bench_output: 当前任务独立的 AISBench 输出根目录
         suite_name_pattern: 当前任务的 suite 名称
         run_start_time: 调用 ais_bench 前的 time.time()，用于时间过滤
 
@@ -359,8 +378,8 @@ def generate_infer_meta(results: list, task_id: str, model_config: str, model_na
     meta_path.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"\n📄 推理元数据已生成: {meta_path}")
 
-    # 兜底：搬运 outputs/default 中残余目录
-    ais_out = ROOT / "outputs" / "default"
+    # 兜底：搬运当前任务 AISBench 临时目录中的残余产出
+    ais_out = _ais_bench_work_dir(output_dir, task_id)
     dest_details = output_dir / task_id / "details"
     dest_details.mkdir(parents=True, exist_ok=True)
     if ais_out.exists():

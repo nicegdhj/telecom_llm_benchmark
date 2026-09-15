@@ -10,6 +10,7 @@ from ais_bench.benchmark.registry import LOAD_DATASET
 from ais_bench.benchmark.datasets.utils.datasets import get_data_path
 from ais_bench.benchmark.utils.logging.logger import AISLogger
 
+# pyrefly: ignore [missing-import]
 from .base import BaseDataset
 
 logger = AISLogger()

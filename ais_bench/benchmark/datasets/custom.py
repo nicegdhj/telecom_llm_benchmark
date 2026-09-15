@@ -130,6 +130,27 @@ class CustomDataset(BaseDataset):
         return Dataset.from_list(data)
 
 
+@LOAD_DATASET.register_module()
+class Task1Dataset(CustomDataset):
+    """Task1 自定义数据集，将 history + instruction 预处理为多轮对话文本 dialog_input。"""
+
+    @staticmethod
+    def load(path, file_name=None, meta_path='', local_mode=False):
+        dataset = CustomDataset.load(path, file_name, meta_path, local_mode)
+
+        def format_example(example):
+            conversation = []
+            for turn in example.get("history", []):
+                if isinstance(turn, (list, tuple)) and len(turn) >= 2:
+                    conversation.append(f"用户：{turn[0]}")
+                    conversation.append(f"助手：{turn[1]}")
+            conversation.append(f"用户：{example.get('instruction', '')}")
+            example["dialog_input"] = "\n".join(conversation)
+            return example
+
+        return dataset.map(format_example)
+
+
 def stringfy_types(obj):
     for k, v in obj.items():
         if k == 'type':

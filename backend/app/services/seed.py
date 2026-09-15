@@ -1,0 +1,150 @@
+import logging
+
+from pathlib import Path
+from sqlalchemy.orm import Session
+
+from backend.app.config import get_settings
+from backend.app.models import DatasetVersion, Task
+from backend.app.task_meta import TASK_DATA_PATH, TASK_META
+
+
+# 默认任务集（与 run_mixed_benchmark.sh 第 284~304 行保持一致）。
+# 启动时与 backend/scripts/seed_tasks.py 共用此清单，避免重复定义。
+DEFAULT_GENERIC = [
+    "ceval_gen_0_shot_str", "mmlu_redux_gen_5_shot_str",
+    "teledata_gen_0_shot", "gpqa_gen_0_shot_str", "bbh_gen_3_shot_cot_chat",
+    "BFCL_gen_simple", "ifeval_0_shot_gen_str", "math500_gen_0_shot_cot_chat_prompt",
+    "aime2025_gen_0_shot_chat_prompt", "telemath_gen_0_cot_shot", "teleqna_gen_0_shot",
+    "tspec_gen_0_shot", "telequad_gen_0_shot", "tele_exam_gen_0_shot",
+    "tele_exam_gen_0_shot_str", "opseval_gen_0_shot", "identity_gen_0_shot",
+    "exam_gen_0_shot",
+    "ot_3gpp_tsg", "ot_oranbench", "ot_sixg_bench", "ot_srsranbench",
+    "ot_telelogs", "ot_telemath", "ot_teleqna", "ot_teletables",
+]
+DEFAULT_CUSTOM = [
+    1, 34, 36, 43, 44, 60, 101, 102,
+    # 非合并 task（2段式，单数据集）
+    201, 202, 203, 204, 205, 206, 207, 208, 211, 212, 213,
+    215, 216, 217, 218, 219, 220, 221, 222, 223, 224, 226, 227,
+    234, 235, 247,
+    # 合并 task（3段式汇聚，多子数据集）
+    209, 210, 214, 225, 229, 236, 240, 250, 253, 256, 258, 260,
+]
+
+
+def _get_ais_bench_configs() -> Path:
+    """Find AISBench configs from the mounted code directory or worktree root.
+
+    In the platform container, ``ais_bench`` is mounted under ``code_dir``;
+    in local Python tests it is available from the worktree root.
+    """
+    mounted_configs = (
+        get_settings().code_dir / "ais_bench" / "benchmark" / "configs" / "datasets"
+    )
+    if mounted_configs.exists():
+        return mounted_configs
+
+    current = Path(__file__).resolve()
+    # backend/app/services/seed.py -> backend/app/services -> backend/app -> backend/ -> project root
+    for _ in range(4):  # safety limit
+        current = current.parent
+    worktree_root = current
+    configs = worktree_root / "ais_bench" / "benchmark" / "configs" / "datasets"
+    if not configs.exists():
+        raise RuntimeError(
+            f"AISBench configs not found at {configs}. "
+            f"Expected from worktree root {worktree_root}"
+        )
+    return configs
+
+
+def _detect_is_llm_judge(suite_name: str) -> bool:
+    """扫描 suite 配置文件，判断是否使用 LLMJudgeEvaluator。configs 不存在时返回 False。"""
+    try:
+        configs = _get_ais_bench_configs()
+    except RuntimeError:
+        return False
+    for py in configs.rglob(f"{suite_name}.py"):
+        try:
+            if "LLMJudgeEvaluator" in py.read_text(encoding="utf-8"):
+                return True
+        except (OSError, UnicodeDecodeError) as e:
+            logging.warning(f"Failed to read {py}: {e}")
+    return False
+
+
+def seed_generic_tasks(session: Session, suite_names: list[str]):
+    for suite in suite_names:
+        path = TASK_DATA_PATH.get(suite)
+        existing = session.query(Task).filter_by(key=suite).first()
+        if existing:
+            # 回填老库可能缺失的数据路径（早期 seed 未写入 TASK_DATA_PATH）
+            if path and not existing.default_data_rel_path:
+                existing.default_data_rel_path = path
+            alias = TASK_META.get(suite, {}).get("alias")
+            if alias:
+                existing.display_name = alias
+            continue
+        alias = TASK_META.get(suite, {}).get("alias", suite)
+        session.add(Task(
+            key=suite,
+            type="generic",
+            suite_name=suite,
+            display_name=alias,
+            default_data_rel_path=path,
+            is_llm_judge=_detect_is_llm_judge(suite),
+        ))
+
+
+def seed_custom_tasks(session: Session, task_nums: list[int]):
+    for num in task_nums:
+        key = f"task_{num}_suite"
+        path = TASK_DATA_PATH.get(key, f"data/custom_task/task_{num}.jsonl")
+        alias = TASK_META.get(key, {}).get("alias", f"Custom Task {num}")
+        existing = session.query(Task).filter_by(key=key).first()
+        if existing:
+            existing.default_data_rel_path = path
+            existing.display_name = alias
+            existing.is_llm_judge = _detect_is_llm_judge(key)
+            continue
+        session.add(Task(
+            key=key,
+            type="custom",
+            suite_name=key,
+            display_name=alias,
+            custom_task_num=num,
+            default_data_rel_path=path,
+            is_llm_judge=_detect_is_llm_judge(key),
+        ))
+
+
+def seed_init_versions(session: Session):
+    """为每个任务挂载/更新 tag=init 的初始数据版本。
+
+    init 是逻辑指针：真实数据由 ais_bench 算子容器在评测时读取，后端容器未必能
+    访问到数据文件（通用数据集打包在计算镜像内），故不校验本地文件是否存在，
+    保证 dev / 本地 docker / 私域三处行为一致。
+    若任务已存在用户设定的默认版本，则 init 不抢默认。
+    已有 init 版本时也更新 data_path，确保升级后路径正确。
+    """
+    for task in session.query(Task).all():
+        rel = TASK_DATA_PATH.get(task.key) or task.default_data_rel_path
+        if not rel:
+            continue
+        existing_init = session.query(DatasetVersion).filter_by(task_id=task.id, tag="init").first()
+        if existing_init:
+            existing_init.data_path = rel
+            continue
+        has_default = (
+            session.query(DatasetVersion)
+            .filter_by(task_id=task.id, is_default=True)
+            .first()
+            is not None
+        )
+        session.add(DatasetVersion(
+            task_id=task.id,
+            tag="init",
+            data_path=rel,
+            is_default=not has_default,
+            note="初始评测数据",
+        ))

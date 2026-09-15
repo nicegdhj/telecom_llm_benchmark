@@ -45,6 +45,7 @@ mmlu_redux_datasets = []
 
 for _name in mmlu_redux_all_sets:
     _hint = f'The following are multiple choice questions (with answers) about {_name.replace("_", " ")}.\n\n'
+    _hint += 'The examples above are already answered. Only answer the very last question.\n\n'
     
     mmlu_redux_reader_cfg = dict(
         input_columns=['input', 'A', 'B', 'C', 'D'],

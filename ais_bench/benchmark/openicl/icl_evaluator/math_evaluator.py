@@ -18,7 +18,105 @@ class MATHEvaluator(BaseEvaluator):
                 UTILS_CODES.DEPENDENCY_MODULE_IMPORT_ERROR, 
                 f"Failed to import required modules. Please install the necessary packages: pip install math_verify latex2sympy2_extended",
             )
+        def verify_with_tolerance(answer_parsed, gold_parsed, tolerance=1e-3) -> bool:
+            """
+            带浮点数误差容忍机制的验证函数 (math_verify 包装器)
+            优先使用代数符号等价校验，若不通过，则尝试将双方转化为 Python float 并比较数值误差。
+            """
+            # 1. 第一优先：直接利用 math_verify 原生的强符号等价验证逻辑
+            try:
+                if float(verify(answer_parsed, gold_parsed)):
+                    return True
+            except Exception:
+                pass    
+            # 2. 如果不相等，进入兜底分支 (Fallback) 尝试数值模糊逼近
+            def _to_float(parsed_item):
+                logger.info(f"========== _to_float 开始处理 ==========")
+                logger.info(f"[输入数据] parsed_item: {parsed_item} (类型: {type(parsed_item)})")
 
+                if not parsed_item:
+                    logger.error("[异常] 输入的解析结果为空")
+                    raise ValueError("输入的解析结果为空")
+                    
+                # 提取列表的第一个元素
+                item = parsed_item[0] if isinstance(parsed_item, list) else parsed_item
+                logger.info(f"[提取元素] item: {item} (类型: {type(item)})")
+                
+                # 【修复Bug】必须在 isinstance 判断前导入 sympy！
+                import sympy
+                
+                # 场景 A: 已经是原生 int 或 float
+                if isinstance(item, (int, float)):
+                    logger.info(f"[命中 场景A] 原生数字类型，直接返回: {float(item)}")
+                    return float(item)
+                    
+                # 场景 B: sympy 原生数值或代数对象
+                if isinstance(item, sympy.Basic):
+                    logger.info("[进入 场景B] 识别为 sympy.Basic 对象")
+                    if getattr(item, 'is_number', False) or not item.free_symbols:
+                        res = float(item.evalf())
+                        logger.info(f"[场景B 成功] 转换为浮点数: {res}")
+                        return res
+                    else:
+                        logger.error("[场景B 失败] 表达式内包含未处理的代数变量")
+                        raise ValueError("表达式内包含未处理的代数变量，无法转为浮点数。")
+      
+                # 提取为纯文本
+                text_val = str(item).strip()
+                logger.info(f"[转为文本] 准备解析文本: '{text_val}'")
+                if '\\overline{' in text_val:
+                    import re
+                    # 将 \overline{数字} 提取出来，并将里面的数字重复 15 次
+                    # 比如 "233.\overline{3}" 会变成 "233.333333333333333"
+                    text_val = re.sub(
+                        r'\\overline\{([0-9]+)\}', 
+                        lambda m: m.group(1) * 15, 
+                        text_val
+                    )
+                    logger.info(f"[正则修复] 展开循环小数后变为: '{text_val}'")                
+                # 场景 C: 百分号
+                if text_val.endswith('%'):
+                    res = float(text_val[:-1]) / 100.0
+                    logger.info(f"[命中 场景C] 识别为百分比，转换结果: {res}")
+                    return res
+                    
+                # 场景 D: latex2sympy 解析
+                logger.info("[进入 场景D] 尝试使用 latex2sympy 解析...")
+                try:
+                    from latex2sympy2_extended import latex2sympy
+                    sym_expr = latex2sympy(text_val)
+                    logger.info(f"[场景D 解析结果] sympy对象: {sym_expr} (类型: {type(sym_expr)})")
+                    
+                    if isinstance(sym_expr, sympy.Basic):
+                        if getattr(sym_expr, 'is_number', False) or not sym_expr.free_symbols:
+                            res = float(sym_expr.evalf())
+                            logger.info(f"[场景D 成功] latex 成功求值为浮点数: {res}")
+                            return res
+                        else:
+                            logger.warning("[场景D 警告] 包含变量，无法求值")
+                except Exception as e:
+                    # 之前这里是 pass，现在打印出具体报错原因，方便抓虫
+                    logger.warning(f"[场景D 失败] latex2sympy 抛出异常: {e}")
+                                       
+                # 场景 E: 最后的原生 float 强转
+                logger.info(f"[进入 场景E] 最后的倔强，尝试原生 float('{text_val}')")
+                try:
+                    res = float(text_val)
+                    logger.info(f"[场景E 成功] 原生 float 转换成功: {res}")
+                    return res
+                except Exception as e:
+                    logger.error(f"[场景E 失败] 原生 float 无法转换: {e}")
+                    raise # 抛出给最外层的 except 捕获
+            try:
+                ans_float = _to_float(answer_parsed)
+                gold_float = _to_float(gold_parsed)
+                # 判断两点绝对误差是否在容忍范围内
+                return abs(ans_float - gold_float) < tolerance
+                
+            except Exception:
+                # 当遇到完全风马牛不相及的格式，或 x+y、无效分数等不可强转为 float 的表达式时
+                # 安全捕获异常并返回错误，不崩溃流水线
+                return False
         self.is_num_equal(predictions, references)
 
         correct = 0
@@ -68,8 +166,8 @@ class MATHEvaluator(BaseEvaluator):
                     ],
                     extraction_mode='first_match',
                 )
-
-                answer_correct = float(verify(answer_parsed, gold_parsed))
+            
+                answer_correct = float(verify_with_tolerance(answer_parsed, gold_parsed, tolerance=1e-3))
                 correct += answer_correct
                 detail = {
                     'pred': str(answer_parsed),

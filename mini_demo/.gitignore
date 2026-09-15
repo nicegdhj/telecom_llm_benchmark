@@ -1,0 +1,5 @@
+.runs/
+outputs/
+config.env
+__pycache__/
+*.pyc

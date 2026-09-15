@@ -1,9 +1,16 @@
 import sys
+import os
+
+# Add the script's directory to sys.path to allow importing ais_bench
+benchmark_dir = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, benchmark_dir)
+
+# Also set PYTHONPATH so that any child processes spawned by TaskManager can inherit it
+os.environ["PYTHONPATH"] = benchmark_dir + os.pathsep + os.environ.get("PYTHONPATH", "")
+
 if sys.platform == "darwin":
     import multiprocessing
     multiprocessing.set_start_method("fork", force=True)
-import os
-
 # # 强制设置命令行参数
 # sys.argv = [
 #     'ais_bench', 
@@ -39,18 +46,26 @@ DATASETS = [
     # 'aime2025_gen_0_shot_chat_prompt.py',
     # 'humaneval_gen_0_shot.py',
     # 'livecodebench_0_shot_chat_v6.py',
+    # 'identity_gen_0_shot.py',
     # 'telemath_gen_0_cot_shot.py',
+    # 'opseval_gen_0_shot.py',
     # 'teleqna_gen_0_shot.py',
     # 'tspec_gen_0_shot.py',
     # 'teledata_gen_0_shot.py',
     # 'telequad_gen_0_shot.py',
     # 'tele_exam_gen_0_shot.py',
-    'tele_exam_gen_0_shot_str.py',
-    # 'identity_gen_0_shot.py',
-    # 'exam_gen_0_shot.py'
-    # 'opseval_gen_0_shot.py'
+    # 'tele_exam_gen_0_shot_str.py',
+    # 'exam_gen_0_shot.py',
+    # 'task_1_suite.py',
+    # 'task_34_suite.py',
+    # 'task_36_suite.py',
+    # 'task_43_suite.py',
+    # 'task_44_suite.py',
+    # 'task_60_suite.py',
+    'alarm_data_gen_0_shot.py',
+    # 'expert_qa_gen.py'
 ]
-# MODEL = 'maas_api'
+# MODEL = 'maas_jt_api'
 MODEL = 'bailian_qwen_plus'
 WORK_DIR = './outputs'
 
@@ -68,9 +83,9 @@ def run_single_dataset(dataset_name):
             '--work-dir', WORK_DIR,
             '--max-num-workers', '1',
             '--debug',
-            '--num-prompts', '10',
-            '--mode','eval',
-            '--reuse','20260331_191224'
+            '--num-prompts', '5',
+            '--mode','all',
+            # '--reuse','20260417_160614'
         ]
         
         from ais_bench.benchmark.cli.task_manager import TaskManager

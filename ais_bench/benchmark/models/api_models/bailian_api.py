@@ -153,6 +153,8 @@ class BailianAPI(BaseAPIModel):
         
         # Add generation parameters
         standard_params = {"temperature", "top_p", "top_k", "presence_penalty", "frequency_penalty"}
+        # Internal-only params that should NOT be forwarded to the API
+        internal_params = {"ignore_eos"}
         all_params = {}
         if self.generation_kwargs:
             all_params.update(self.generation_kwargs)
@@ -162,6 +164,11 @@ class BailianAPI(BaseAPIModel):
         for param in standard_params:
             if param in all_params:
                 request_body[param] = all_params[param]
+        
+        # Pass through non-standard extra params (e.g. enable_thinking for qwen3 reasoning models)
+        for param, value in all_params.items():
+            if param not in standard_params and param not in internal_params:
+                request_body[param] = value
         
         # Add stream parameter
         if self.stream:

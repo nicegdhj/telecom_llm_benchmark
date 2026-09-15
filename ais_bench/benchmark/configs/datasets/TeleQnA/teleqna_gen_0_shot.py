@@ -16,7 +16,7 @@ teleqna_reader_cfg = dict(
 teleqna_infer_cfg = dict(
     prompt_template=dict(
         type=PromptTemplate,
-        template=f'{{question}}\nPlease select the correct answer from the options provided.</E>\nA. {{A}}\nB. {{B}}\nC. {{C}}\nD. {{D}}\nAnswer:'
+        template=f'{{question}}\nPlease select the correct answer from the options provided.</E>\nA. {{A}}\nB. {{B}}\nC. {{C}}\nD. {{D}}\nE. {{E}}\nAnswer:'
     ),
     retriever=dict(type=ZeroRetriever),
     inferencer=dict(type=GenInferencer),

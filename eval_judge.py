@@ -87,14 +87,22 @@ def parse_args():
         default=False,
         help="跳过 LLM 打分类型的评测任务，只执行规则型评测",
     )
+    parser.add_argument(
+        "--num-prompts",
+        type=int,
+        default=None,
+        help="每个任务最多评测多少条数据（与推理阶段的 --num-prompts 保持一致，默认 None=全量）",
+    )
     return parser.parse_args()
 
 
 # ── LLM 评估器检测 ───────────────────────────────────────────────────
 def detect_evaluator_type(suite_name: str) -> str:
-    """扫描 suite 配置文件，检测 evaluator 是否为 LLMJudgeEvaluator。
+    """扫描 suite 配置文件，检测 evaluator 是否需要 LLM 打分模型。
 
-    搜索 ais_bench/benchmark/configs/datasets/ 下匹配 {suite_name}.py 的文件。
+    两级检测：
+      1. 配置文件中直接包含 LLMJudgeEvaluator 字符串
+      2. 配置文件引用的评测器（如 ExamDynamicEvaluator）内部依赖 LLMJudgeEvaluator
 
     Returns:
         'llm' 或 'rule'
@@ -103,6 +111,10 @@ def detect_evaluator_type(suite_name: str) -> str:
         try:
             content = py_file.read_text(encoding="utf-8")
             if "LLMJudgeEvaluator" in content:
+                return "llm"
+            # 评分器名不直接包含 LLMJudgeEvaluator 但可能内部引用了它
+            # 如 ExamDynamicEvaluator
+            if "ExamDynamicEvaluator" in content:
                 return "llm"
         except Exception:
             pass
@@ -149,6 +161,7 @@ def run_eval_for_task(
     infer_task_dir: Path,
     eval_dir: Path,
     task_timeout: int = 3600,
+    num_prompts: int = None,
 ) -> dict:
     """对单个任务执行评测，搬运结果到 eval_dir。"""
 
@@ -160,13 +173,18 @@ def run_eval_for_task(
     details_base = str(infer_task_dir / "details")
 
     cmd = [
-        "ais_bench",
+        sys.executable, "-m", "ais_bench.benchmark.cli.main",
         "--mode", "eval",
         "--work-dir", details_base,
         "--reuse", timestamp,
         "--models", model_config,
         "--datasets", suite,
     ]
+    if num_prompts is not None:
+        cmd += ["--num-prompts", str(num_prompts)]
+
+    # 任务开始前清理残留共享内存，防止前面任务的泄漏累积导致死锁
+    _cleanup_leaked_shm()
 
     start_time = time.time()
     status = "success"
@@ -215,16 +233,19 @@ def run_eval_for_task(
 def _parse_eval_result(work_dir: Path, suite: str) -> tuple:
     """从评测产出中解析准确率和样本数。
 
+    只提取 accuracy 和 llm_judge_percentage 作为准确率指标，忽略其他辅助指标。
+    多子任务时用加权平均（Σ(各子类正确数) / Σ(各子类总数)）。
+
     Returns:
         (accuracy: float | None, num_samples: int | None)
     """
-    accuracy = None
-    num_samples = None
+    _ALLOWED_METRIC_KEYWORDS = ("accuracy", "llm_judge_percentage")
 
-    # 从 summary 解析准确率
-    # CSV 格式：dataset,version,metric,mode,score[,score2...]
-    # 排除 parse_success_rate、field_* 等辅助指标，只保留主评分指标
-    _EXCLUDED_METRIC_PREFIXES = ("parse_success_rate", "field_")
+    # 按子任务收集 (score, num_samples)
+    subtask_scores = {}   # dataset_name -> score(float)
+    subtask_samples = {}  # dataset_name -> num_samples(int)
+
+    # 1. 从 summary CSV 提取每个子任务的准确率（只保留 accuracy / llm_judge_percentage）
     for summary_path in work_dir.glob("summary/summary_*.txt"):
         try:
             text = summary_path.read_text(encoding="utf-8")
@@ -234,41 +255,98 @@ def _parse_eval_result(work_dir: Path, suite: str) -> tuple:
                 if line.strip() == "csv format":
                     csv_start = idx
                     break
-
             if csv_start == -1:
                 continue
 
-            total_acc = 0.0
-            valid_count = 0
             for i in range(csv_start + 3, len(lines)):
                 if lines[i].startswith("$") or not lines[i].strip():
                     break
                 parts = lines[i].strip().split(",")
                 if len(parts) >= 5:
+                    dataset = parts[0].strip()
                     metric_name = parts[2].strip()
-                    if not metric_name.startswith(_EXCLUDED_METRIC_PREFIXES):
+                    if any(kw in metric_name for kw in _ALLOWED_METRIC_KEYWORDS) and dataset not in subtask_scores:
                         try:
-                            total_acc += float(parts[-1])
-                            valid_count += 1
+                            subtask_scores[dataset] = float(parts[-1])
                         except (ValueError, TypeError):
                             pass
-
-            if valid_count > 0:
-                accuracy = round(total_acc / valid_count, 2)
         except Exception:
             pass
 
-    # 从 results 的 details.jsonl 统计样本数
-    details_files = list((work_dir / "results").glob("**/*_details.jsonl"))
-    if details_files:
+    # 2. 从 details.jsonl 统计每个子任务的样本数
+    for details_file in (work_dir / "results").glob("**/*_details.jsonl"):
+        dataset_name = details_file.stem.replace("_details", "")
         try:
-            num_samples = sum(
-                sum(1 for _ in open(f, "r", encoding="utf-8"))
-                for f in details_files
+            subtask_samples[dataset_name] = sum(
+                1 for _ in open(details_file, "r", encoding="utf-8")
             )
         except Exception:
             pass
 
+    # 3. 计算加权平均：Σ(score_i / 100 × samples_i) / Σ(samples_i) × 100
+    total_correct = 0.0
+    total_samples = 0
+    for ds, score in subtask_scores.items():
+        samples = subtask_samples.get(ds, 0)
+        if samples > 0:
+            total_correct += score / 100.0 * samples
+            total_samples += samples
+
+    if total_samples > 0:
+        accuracy = round(total_correct / total_samples * 100, 2)
+    elif subtask_scores:
+        # 没有 samples 信息时退化为简单平均
+        scores = list(subtask_scores.values())
+        accuracy = round(sum(scores) / len(scores), 2)
+    else:
+        accuracy = None
+
+    # 4. 兜底：summary 缺失时，从各子任务结果 JSON 文件恢复
+    if accuracy is None:
+        score_files = [
+            f for f in (work_dir / "results").glob("**/*.json")
+            if not f.name.endswith("_details.json")
+        ]
+        for jf in score_files:
+            try:
+                data = json.loads(jf.read_text(encoding="utf-8"))
+                if "error" in data:
+                    continue
+                # 从 data 中按关键词匹配提取准确率
+                score = None
+                for k, v in data.items():
+                    if any(kw in k for kw in _ALLOWED_METRIC_KEYWORDS) and isinstance(v, (int, float)):
+                        score = float(v)
+                        break
+                if score is None:
+                    score = data.get("score")
+                if isinstance(score, (int, float)):
+                    ds = jf.stem
+                    subtask_scores[ds] = float(score)
+                    # 统计对应 details 文件行数
+                    details_file = jf.parent / f"{ds}_details.jsonl"
+                    if details_file.exists():
+                        subtask_samples[ds] = sum(
+                            1 for _ in open(details_file, "r", encoding="utf-8")
+                        )
+            except Exception:
+                pass
+
+        if subtask_scores:
+            total_correct = 0.0
+            total_samples = 0
+            for ds, score in subtask_scores.items():
+                samples = subtask_samples.get(ds, 0)
+                if samples > 0:
+                    total_correct += score / 100.0 * samples
+                    total_samples += samples
+            if total_samples > 0:
+                accuracy = round(total_correct / total_samples * 100, 2)
+            else:
+                scores = list(subtask_scores.values())
+                accuracy = round(sum(scores) / len(scores), 2)
+
+    num_samples = total_samples if total_samples > 0 else None
     return accuracy, num_samples
 
 
@@ -320,6 +398,7 @@ def _run_rule_tasks_parallel(
     eval_dir: Path,
     max_workers: int,
     task_timeout: int,
+    num_prompts: int = None,
 ) -> list:
     """使用线程池并行执行规则型评测任务。"""
     print(f"\n📌 规则型评测：{len(rule_suites)} 个任务，并发={max_workers}")
@@ -340,6 +419,7 @@ def _run_rule_tasks_parallel(
                 infer_task_dir=infer_task_dir,
                 eval_dir=eval_dir,
                 task_timeout=task_timeout,
+                num_prompts=num_prompts,
             )
             future_to_suite[future] = suite
 
@@ -528,6 +608,7 @@ def main():
             eval_dir=eval_dir,
             max_workers=args.score_worker_concurrency,
             task_timeout=args.task_timeout,
+            num_prompts=args.num_prompts,
         )
         results.extend(rule_results)
 
@@ -554,6 +635,7 @@ def main():
                 infer_task_dir=infer_task_dir,
                 eval_dir=eval_dir,
                 task_timeout=args.task_timeout,
+                num_prompts=args.num_prompts,
             )
             results.append(result)
 

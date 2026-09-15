@@ -569,12 +569,19 @@ class APITemplateParser:
             new_prompt = PromptList([prompt[0]])
             last_role = prompt[0]["role"]
             for item in prompt[1:]:
-                if item["role"] == last_role:
+                if (
+                    item["role"] == last_role
+                    and not item.get("_preserve_role_boundary", False)
+                    and not new_prompt[-1].get("_preserve_role_boundary", False)
+                ):
                     new_prompt[-1]["prompt"] += "\n" + item["prompt"]
                 else:
                     last_role = item["role"]
                     new_prompt.append(item)
             prompt = new_prompt
+
+            for item in prompt:
+                item.pop("_preserve_role_boundary", None)
 
             if self.meta_template.get("begin", None):
                 prompt.insert(0, self.meta_template["begin"])
@@ -721,6 +728,15 @@ class APITemplateParser:
         # res_api_prompt = dict(type='', )
         if for_gen and merged_prompt.get("generate", False):
             return None, False
+        if (
+            "prompt" not in merged_prompt
+            and "prompt_mm" not in merged_prompt
+            and merged_prompt.get("generate", False)
+        ):
+            # A user-only history can legitimately omit the assistant answer.
+            # Keep the generated role as the stopping point, but do not emit an
+            # empty assistant message for earlier rounds.
+            return None, True
         res = {}
         res["role"] = merged_prompt["api_role"]
         if "prompt" in merged_prompt:
@@ -734,4 +750,6 @@ class APITemplateParser:
                 MODEL_CODES.INVALID_PROMPT_CONTENT,
                 "Invalid prompt content: without 'prompt' or 'prompt_mm' param!"
             )
+        if merged_prompt.get("_preserve_role_boundary", False):
+            res["_preserve_role_boundary"] = True
         return res, True

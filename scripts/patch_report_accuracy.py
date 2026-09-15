@@ -5,16 +5,19 @@
     python patch_report_accuracy.py <eval_dir> [<eval_dir2> ...]
     python patch_report_accuracy.py ~/Desktop/fmt_all/fmt_exp0318/*/eval_1
 
-修复问题：report.json 中部分任务 accuracy 为 null，但 summary 中有结果。
-原因是解析时只匹配 metric=="accuracy"，遗漏了 llm_judge_percentage、
-Prompt-level-strict-accuracy、humaneval_pass@1、score 等指标。
+修复问题：根据 summary 中的主评分指标重新计算 report.json accuracy。
+既可回填 null，也可修正误将辅助指标混入平均值的已有错误结果。
 """
 
 import json
 import sys
 from pathlib import Path
 
-_EXCLUDED_METRIC_PREFIXES = ("parse_success_rate", "field_")
+_EXCLUDED_METRIC_PREFIXES = (
+    "parse_success_rate",
+    "field_",
+    "hallucination_rate",
+)
 
 
 def parse_accuracy_from_summary(eval_dir: Path, suite: str) -> float | None:
@@ -70,16 +73,15 @@ def patch_report(eval_dir: Path) -> None:
 
     patched = []
     for task in report.get("tasks", []):
-        if task.get("accuracy") is not None:
-            continue
         if task.get("status") != "success":
             continue
 
         suite = task.get("suite", task.get("task", ""))
         new_acc = parse_accuracy_from_summary(eval_dir, suite)
-        if new_acc is not None:
+        old_acc = task.get("accuracy")
+        if new_acc is not None and new_acc != old_acc:
             task["accuracy"] = new_acc
-            patched.append(f"    {task['task']}: null -> {new_acc}")
+            patched.append(f"    {task['task']}: {old_acc} -> {new_acc}")
 
     if not patched:
         print(f"  无需修复：{report_path}")

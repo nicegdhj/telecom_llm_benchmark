@@ -55,8 +55,12 @@ class MaaSJTAPI(BaseAPIModel):
             verbose=verbose,
         )
         if api_key:
-            self.headers["Authorization"] = f"Bearer {api_key}"
+            if not api_key.startswith("Bearer "):
+                self.headers["Authorization"] = f"Bearer {api_key}"
+            else:
+                self.headers["Authorization"] = api_key
             self.logger.info("API key is set")
+        self.headers["Content-Type"] = "application/json"
         self.meta_template = (
             dict(
                 round=[
@@ -69,7 +73,7 @@ class MaaSJTAPI(BaseAPIModel):
             else meta_template
         )
         self.model = model if model else self._get_service_model_path()
-        self.url = self._get_url()
+        self.url = url if url and "chat/completions" in url else self._get_url()
         self.template_parser = APITemplateParser(self.meta_template)
         self.session = None
 
@@ -99,6 +103,7 @@ class MaaSJTAPI(BaseAPIModel):
                 messages.append(msg)
         output.input = messages
         request_body = dict(
+            model=self.model,
             stream=self.stream,
             messages=messages,
         )
@@ -116,6 +121,10 @@ class MaaSJTAPI(BaseAPIModel):
         return request_body
 
     async def parse_stream_response(self, json_content, output):
+        if "error" in json_content:
+            output.content = f"API Error: {json_content['error']}"
+            output.success = False
+            return
         for item in json_content.get("choices", []):
             if item["delta"].get("content"):
                 output.content += item["delta"]["content"]
@@ -125,6 +134,10 @@ class MaaSJTAPI(BaseAPIModel):
             output.output_tokens = json_content["usage"]["completion_tokens"]
 
     async def parse_text_response(self, json_content, output):
+        if "error" in json_content:
+            output.content = f"API Error: {json_content['error']}"
+            output.success = False
+            return
         for item in json_content.get("choices", []):
             if content:=item["message"].get("content"):
                 output.content += content

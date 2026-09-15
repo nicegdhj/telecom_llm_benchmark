@@ -78,9 +78,14 @@ class BaseRetriever:
 
     def get_gold_ans(self):
         if self.dataset_reader.output_column:
-            return self.dataset_reader.dataset["test"][
-                self.dataset_reader.output_column
-            ]
+            try:
+                test_ds = self.dataset_reader.dataset["test"]
+                if self.dataset_reader.output_column in test_ds.column_names:
+                    return test_ds[self.dataset_reader.output_column]
+                else:
+                    return [None] * len(test_ds)
+            except (KeyError, ValueError):
+                return [None] * len(self.dataset_reader.dataset["test"])
         else:
             return None
 
@@ -108,7 +113,10 @@ class BaseRetriever:
         ):
             labels = list(self.ice_template.template.keys())
         else:
-            labels = list(set(self.test_ds[self.dataset_reader.output_column]))
+            if self.dataset_reader.output_column in self.test_ds.column_names:
+                labels = list(set(self.test_ds[self.dataset_reader.output_column]))
+            else:
+                labels = []
         return labels
 
     def generate_ice(self, idx_list: List[int]) -> str:

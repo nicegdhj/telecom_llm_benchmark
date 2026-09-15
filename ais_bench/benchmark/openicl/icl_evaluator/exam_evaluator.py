@@ -79,6 +79,33 @@ def _score_multiple_choice(prediction: str, reference: str) -> float:
     return float(match_count) / len(expected)
 
 
+def _normalize_latex(s: str) -> str:
+    """规范化 LaTeX 字符串，消除纯排版/显示风格差异，便于字符串快速比较。
+
+    处理的差异包括：
+    - ``\\dfrac`` / ``\\tfrac`` → ``\\frac``
+    - ``\\left`` / ``\\right`` → 去除（仅保留括号本体）
+    - ``\\displaystyle`` / ``\\textstyle`` / ``\\scriptstyle`` → 去除
+    - ``\\,`` ``\\;`` ``\\:`` ``\\!`` ``\\ `` ``\\quad`` ``\\qquad`` 等数学空格 → 去除
+    - 外层 ``$...$`` / ``$$...$$`` 定界符 → 去除
+    - 多余空白 → 折叠为单空格后 strip
+    """
+    # 去掉 $...$ 和 $$...$$ 定界符
+    s = re.sub(r'^\$\$(.*)\$\$$', r'\1', s.strip(), flags=re.DOTALL)
+    s = re.sub(r'^\$(.*)\$$', r'\1', s.strip(), flags=re.DOTALL)
+    # \dfrac / \tfrac → \frac
+    s = re.sub(r'\\[dt]frac\b', r'\\frac', s)
+    # \left / \right（后面可以跟括号或 .）
+    s = re.sub(r'\\(?:left|right)\s*(?=[({\[|.\\]|$)', '', s)
+    # 显示风格命令
+    s = re.sub(r'\\(?:displaystyle|textstyle|scriptstyle|scriptscriptstyle)\b', '', s)
+    # 数学空格命令
+    s = re.sub(r'\\(?:,|;|:|!|quad|qquad| )', '', s)
+    # 折叠空白
+    s = ' '.join(s.split())
+    return s.strip()
+
+
 # ────────────────────────────────────────────────────────────
 # 评估器主类
 # ────────────────────────────────────────────────────────────
@@ -91,13 +118,18 @@ class ExamDynamicEvaluator(BaseEvaluator):
     Args:
         llm_judge_kwargs (dict): 传递给 LLMJudgeEvaluator 的额外构造参数，
             如 ``prompt_template``。默认为空字典。
+        fill_blank_evaluator (str): 填空题评估方式，可选值：
+            - ``"llm"``  （默认）使用 LLMJudgeEvaluator 评分，能处理数学等价等复杂情况；
+            - ``"math"`` 使用 MATHEvaluator（基于 LaTeX 符号等价的精确匹配）。
     """
 
-    def __init__(self, llm_judge_kwargs: dict = None, **kwargs):
+    def __init__(self, llm_judge_kwargs: dict = None,
+                 fill_blank_evaluator: str = "llm", **kwargs):
         super().__init__()
         self._llm_judge_kwargs = llm_judge_kwargs or {}
-        self._llm_judge = None  # 懒加载，仅在存在主观题时初始化
-        self._math_evaluator = None  # 懒加载，仅在存在填空题时初始化
+        self._fill_blank_evaluator = fill_blank_evaluator  # "llm" | "math"
+        self._llm_judge = None  # 懒加载，仅在存在主观题/填空题（llm模式）时初始化
+        self._math_evaluator = None  # 懒加载，仅在填空题 math 模式时初始化
 
     # ── 懒加载 Evaluators ─────────────────────────────
 
@@ -164,13 +196,22 @@ class ExamDynamicEvaluator(BaseEvaluator):
             if q_type == "fill_blank":
                 p_clean = pred.strip()
                 r_clean = ref.strip()
-                
-                # 快速通道：如果去空格后完全一致，直接判对（防止底层模型解析引擎无法识别特定符号导致全错）
+
+                # 快速通道1：字符串去空格后完全一致
                 if p_clean == r_clean or p_clean.replace(" ", "") == r_clean.replace(" ", ""):
                     detail["correct"] = True
                     detail["got_score"] = item_score
-                else:
+                # 快速通道2：规范化 LaTeX 排版差异后一致（如 \dfrac vs \frac、\left(\right) 等）
+                elif _normalize_latex(p_clean) == _normalize_latex(r_clean):
+                    detail["correct"] = True
+                    detail["got_score"] = item_score
+                elif self._fill_blank_evaluator == "math":
+                    # math 模式：送 MATHEvaluator 批量处理
                     detail["_pending_math"] = True
+                    fill_blank_indices.append((len(details), pred, ref, item_score))
+                else:
+                    # llm 模式（默认）：和主观题一样送 LLM 批量处理
+                    detail["_pending_llm"] = True
                     fill_blank_indices.append((len(details), pred, ref, item_score))
 
             elif q_type == "multiple_choice":
@@ -196,44 +237,87 @@ class ExamDynamicEvaluator(BaseEvaluator):
 
             details.append(detail)
 
-        # 批量处理填空题 (使用 MATHEvaluator)
+        # 批量处理填空题
         if fill_blank_indices:
-            def _wrap_math_pred(p: str) -> str:
-                p = p.strip()
-                if not p:
+            if self._fill_blank_evaluator == "math":
+                # ── Math 模式：使用 MATHEvaluator ──────────────────────────
+                def _wrap_math_pred(p: str) -> str:
+                    p = p.strip()
+                    if not p:
+                        return p
+                    if "$" not in p and "\\boxed" not in p and "\\[" not in p and "\\(" not in p:
+                        return f"\\boxed{{{p}}}"
                     return p
-                # 在 MATHEvaluator 的 LatexExtractionConfig(try_extract_without_anchor=False)
-                # 配置下，必须使用 \boxed{...} 才能被当作答案提取。$...$ 是不识别的。
-                if "$" not in p and "\\boxed" not in p and "\\[" not in p and "\\(" not in p:
-                    # 强行套上 \boxed，以便复用底层而不用修改它
-                    return f"\\boxed{{{p}}}"
-                return p
 
-            math_preds = [_wrap_math_pred(t[1]) for t in fill_blank_indices]
-            math_refs = [t[2] for t in fill_blank_indices]
+                math_preds = [_wrap_math_pred(t[1]) for t in fill_blank_indices]
+                math_refs = [t[2] for t in fill_blank_indices]
 
-            try:
-                math_ev = self._get_math_evaluator()
-                math_result = math_ev.score(math_preds, math_refs)
-                math_details = math_result.get("details", [])
+                try:
+                    math_ev = self._get_math_evaluator()
+                    math_result = math_ev.score(math_preds, math_refs)
+                    math_details = math_result.get("details", [])
 
-                for (detail_idx, _, _, item_score_), md in zip(
-                    fill_blank_indices, math_details
-                ):
-                    correct = md.get("correct", False)
-                    details[detail_idx]["correct"] = correct
-                    details[detail_idx]["got_score"] = item_score_ if correct else 0.0
-                    details[detail_idx].pop("_pending_math", None)
-            except Exception as e:
-                logger.warning(
-                    f"[ExamDynamicEvaluator] MATHEvaluator failed: {e}. "
-                    "Falling back to exact string match."
-                )
-                for detail_idx, p, r, item_score_ in fill_blank_indices:
-                    correct = p.strip() == r.strip()
-                    details[detail_idx]["correct"] = correct
-                    details[detail_idx]["got_score"] = item_score_ if correct else 0.0
-                    details[detail_idx].pop("_pending_math", None)
+                    for (detail_idx, _, _, item_score_), md in zip(
+                        fill_blank_indices, math_details
+                    ):
+                        correct = md.get("correct", False)
+                        details[detail_idx]["correct"] = correct
+                        details[detail_idx]["got_score"] = item_score_ if correct else 0.0
+                        details[detail_idx].pop("_pending_math", None)
+                except Exception as e:
+                    logger.warning(
+                        f"[ExamDynamicEvaluator] MATHEvaluator failed: {e}. "
+                        "Falling back to exact string match."
+                    )
+                    for detail_idx, p, r, item_score_ in fill_blank_indices:
+                        correct = p.strip() == r.strip()
+                        details[detail_idx]["correct"] = correct
+                        details[detail_idx]["got_score"] = item_score_ if correct else 0.0
+                        details[detail_idx].pop("_pending_math", None)
+
+            else:
+                # ── LLM 模式（默认）：与主观题共享 LLMJudgeEvaluator ────────
+                fb_preds = [t[1] for t in fill_blank_indices]
+                fb_refs = [t[2] for t in fill_blank_indices]
+                fb_scores_max = [t[3] for t in fill_blank_indices]
+
+                try:
+                    judge = self._get_llm_judge()
+                    import datasets as hf_datasets
+                    tmp_ds = hf_datasets.Dataset.from_list(
+                        [{"score": str(s)} for s in fb_scores_max]
+                    )
+                    judge_result = judge.score(
+                        predictions=fb_preds,
+                        references=fb_refs,
+                        test_set=tmp_ds,
+                    )
+                    judge_details = judge_result.get("details", [])
+
+                    for (detail_idx, _, _, item_score_), jd in zip(
+                        fill_blank_indices, judge_details
+                    ):
+                        llm_score = jd.get("llm_score")  # None 表示调用失败
+                        if llm_score is None:
+                            details[detail_idx]["skipped"] = True
+                            details[detail_idx]["got_score"] = None
+                            details[detail_idx]["llm_error"] = jd.get("llm_error", "empty judge output")
+                        else:
+                            details[detail_idx]["got_score"] = llm_score
+                            details[detail_idx]["correct"] = (llm_score >= item_score_)
+                        details[detail_idx]["llm_judge_output"] = jd.get("judge_output", "")
+                        details[detail_idx].pop("_pending_llm", None)
+
+                except Exception as e:
+                    logger.warning(
+                        f"[ExamDynamicEvaluator] LLM judge failed for fill_blank: {e}. "
+                        "Fill blank questions will be skipped."
+                    )
+                    for detail_idx, _, _, _ in fill_blank_indices:
+                        details[detail_idx].pop("_pending_llm", None)
+                        details[detail_idx]["skipped"] = True
+                        details[detail_idx]["got_score"] = None
+                        details[detail_idx]["llm_error"] = str(e)
 
         # 批量处理主观题
         if subjective_indices:
@@ -258,8 +342,14 @@ class ExamDynamicEvaluator(BaseEvaluator):
                 for (detail_idx, _, _, item_score_), jd in zip(
                     subjective_indices, judge_details
                 ):
-                    llm_score = jd.get("llm_score", 0.0)
-                    details[detail_idx]["got_score"] = llm_score
+                    llm_score = jd.get("llm_score")  # None 表示大模型调用失败
+                    if llm_score is None:
+                        # 大模型调用失败，标记为跳过，不计入分母
+                        details[detail_idx]["skipped"] = True
+                        details[detail_idx]["got_score"] = None
+                        details[detail_idx]["llm_error"] = jd.get("llm_error", "empty judge output")
+                    else:
+                        details[detail_idx]["got_score"] = llm_score
                     details[detail_idx]["llm_judge_output"] = jd.get("judge_output", "")
                     details[detail_idx].pop("_pending_llm", None)
 
@@ -272,6 +362,22 @@ class ExamDynamicEvaluator(BaseEvaluator):
                     details[detail_idx].pop("_pending_llm", None)
                     details[detail_idx]["got_score"] = 0.0
                     details[detail_idx]["llm_error"] = str(e)
+
+        # 为每条 detail 构建 eval_details，供 openicl_eval.py 写入 JSONL
+        for detail in details:
+            eval_d = {
+                "type": detail.get("type"),
+                "item_score": detail.get("item_score"),
+                "got_score": detail.get("got_score"),
+                "skipped": detail.get("skipped"),
+                "correct": detail.get("correct"),
+            }
+            if "llm_judge_output" in detail:
+                eval_d["llm_judge_output"] = detail["llm_judge_output"]
+            if "llm_error" in detail:
+                eval_d["llm_error"] = detail["llm_error"]
+            detail["eval_details"] = eval_d
+            detail["eval_res"] = str(detail.get("got_score"))
 
         return {"details": details}
 
@@ -304,23 +410,29 @@ class ExamDynamicEvaluator(BaseEvaluator):
             idx = i
             if i < len(original_dataset):
                 example = original_dataset[i]
-                subdiv = example.get("subdivision", "unknown")
-                idx = example.get("idx", i)
+                subdiv = example.get("subdivision") or "unknown"
+                idx = example.get("idx") if example.get("idx") is not None else i
             detail["example_abbr"] = f"{subdiv}_{idx}"
 
             if not detail.get("skipped", False):
-                paper_got[subdiv] += detail.get("got_score", 0.0)
-                paper_max[subdiv] += detail.get("item_score", 1.0)
-            got_score = detail.get("got_score", 0.0)
-            res_tag = "✅ PASS" if got_score > 0 else "❌ FAIL"
+                got_score = detail.get("got_score", 0.0)
+                if got_score is not None:
+                    paper_got[subdiv] += got_score
+                    paper_max[subdiv] += detail.get("item_score", 1.0)
+                # got_score 为 None 时（LLM失败），不计入分母，相当于该题被忽略
+            else:
+                got_score = detail.get("got_score", 0.0)
+            res_tag = "✅ PASS" if got_score and got_score > 0 else ("⚠️ LLM失败" if got_score is None else "❌ FAIL")
+            got_score_display = "N/A" if got_score is None else got_score
+            example_abbr_display = detail.get('example_abbr') or ''
             p_str = predictions[i][:50].replace('\n', ' ')
             g_str = references[i][:50].replace('\n', ' ')
 
             # 核心日志行
             logger.info(
-                f"{detail['example_abbr']:<25} | "
+                f"{example_abbr_display:<25} | "
                 f"{res_tag:<7} | "
-                f"{got_score:<5} | "
+                f"{got_score_display:<5} | "
                 f"Pred: [{p_str}] vs Gold: [{g_str}]"
             )
         # 按试卷聚合得分

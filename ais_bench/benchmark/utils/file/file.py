@@ -1,8 +1,15 @@
 from typing import List, Tuple, Union
+from contextlib import contextmanager
 import os
 import json
 import fnmatch
 import tabulate
+import threading
+
+try:
+    import fcntl
+except ImportError:
+    fcntl = None
 
 from ais_bench.benchmark.utils.logging.logger import AISLogger
 from ais_bench.benchmark.utils.logging.exceptions import FileMatchError
@@ -17,6 +24,22 @@ __all__ = [
 ]
 
 logger = AISLogger()
+_fallback_status_lock = threading.Lock()
+
+
+@contextmanager
+def _status_file_lock(file_path):
+    if fcntl is None:
+        with _fallback_status_lock:
+            yield
+        return
+
+    with open(f"{file_path}.lock", "a+b") as lock_file:
+        fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
 
 
 def write_status(file_path, status):
@@ -29,33 +52,29 @@ def write_status(file_path, status):
     Returns:
         bool: True if successful, False otherwise
     """
-    # read existing content
-    existing_data = []
-    if os.path.exists(file_path):
-        try:
-            with open(file_path, "r", encoding="utf-8") as f:
-                existing_data = json.load(f)
-        except json.JSONDecodeError as e:
-            logger.warning(
-                f"Failed to parse JSON from status file '{file_path}': {e}. "
-                f"Starting with empty status list."
-            )
-            existing_data = []
-        except IOError as e:
-            logger.warning(
-                f"Failed to read status file '{file_path}': {e}. "
-                f"Starting with empty status list."
-            )
-            existing_data = []
-
-    # add new status
-    existing_data.append(status)
-
-    # write to file
     try:
-        with open(file_path, "w", encoding="utf-8") as f:
-            json.dump(existing_data, f)
-        return True
+        with _status_file_lock(file_path):
+            existing_data = []
+            if os.path.exists(file_path):
+                try:
+                    with open(file_path, "r", encoding="utf-8") as f:
+                        existing_data = json.load(f)
+                except json.JSONDecodeError as e:
+                    logger.debug(
+                        f"Failed to parse JSON from status file '{file_path}': {e}. "
+                        f"Starting with empty status list."
+                    )
+                except IOError as e:
+                    logger.warning(
+                        f"Failed to read status file '{file_path}': {e}. "
+                        f"Starting with empty status list."
+                    )
+
+            existing_data.append(status)
+
+            with open(file_path, "w", encoding="utf-8") as f:
+                json.dump(existing_data, f)
+            return True
     except IOError as e:
         logger.warning(f"Failed to write status to '{file_path}': {e}")
         return False
@@ -87,46 +106,48 @@ def read_and_clear_statuses(tmp_file_dir, tmp_file_name_list):
 
     for tmp_file in abs_path_list:
         try:
-            # read existing content
-            with open(tmp_file, "r", encoding="utf-8") as f:
-                data = json.load(f)
+            with _status_file_lock(tmp_file):
+                try:
+                    with open(tmp_file, "r", encoding="utf-8") as f:
+                        data = json.load(f)
 
-            status_count = len(data)
-            all_status.extend(data)
+                    status_count = len(data)
+                    all_status.extend(data)
 
-            # clear file content
-            with open(tmp_file, "w", encoding="utf-8") as f:
-                json.dump([], f)
+                    with open(tmp_file, "w", encoding="utf-8") as f:
+                        json.dump([], f)
 
-            logger.debug(
-                f"Read {status_count} statuses from '{tmp_file}' and cleared file"
-            )
+                    logger.debug(
+                        f"Read {status_count} statuses from '{tmp_file}' and cleared file"
+                    )
 
-        except json.JSONDecodeError as e:
-            logger.warning(
-                f"Failed to parse JSON from '{tmp_file}': {e}. "
-                f"Clearing corrupted file and continuing."
-            )
-            try:
-                with open(tmp_file, "w", encoding="utf-8") as f:
-                    json.dump([], f)
-            except IOError as write_err:
-                logger.warning(
-                    f"Failed to clear corrupted file '{tmp_file}': {write_err}"
-                )
+                except json.JSONDecodeError as e:
+                    logger.debug(
+                        f"Failed to parse JSON from '{tmp_file}': {e}. "
+                        f"Clearing corrupted file and continuing."
+                    )
+                    try:
+                        with open(tmp_file, "w", encoding="utf-8") as f:
+                            json.dump([], f)
+                    except IOError as write_err:
+                        logger.warning(
+                            f"Failed to clear corrupted file '{tmp_file}': {write_err}"
+                        )
 
+                except IOError as e:
+                    logger.warning(
+                        f"Failed to read status file '{tmp_file}': {e}. "
+                        f"Attempting to clear and continuing."
+                    )
+                    try:
+                        with open(tmp_file, "w", encoding="utf-8") as f:
+                            json.dump([], f)
+                    except IOError as write_err:
+                        logger.warning(
+                            f"Failed to clear unreadable file '{tmp_file}': {write_err}"
+                        )
         except IOError as e:
-            logger.warning(
-                f"Failed to read status file '{tmp_file}': {e}. "
-                f"Attempting to clear and continuing."
-            )
-            try:
-                with open(tmp_file, "w", encoding="utf-8") as f:
-                    json.dump([], f)
-            except IOError as write_err:
-                logger.warning(
-                    f"Failed to clear unreadable file '{tmp_file}': {write_err}"
-                )
+            logger.warning(f"Failed to lock status file '{tmp_file}': {e}")
 
     logger.debug(f"Total statuses collected: {len(all_status)}")
     return all_status
