@@ -946,4 +946,356 @@ export const TASK_DETAIL_META = {
     },
     aisBench: { suite: "task_102_suite", evalType: "多专业知识问答（LLM 裁判·三维度）", shot: "0-shot", note: "数据目录 data/task_102/（8 个知识型子文件：传输/核心网/集客/家客）；TelecomLLMJudgeEvaluator" },
   },
+  "task_212_suite": {
+    format: {
+      type: "JSONL",
+      desc: "家客-知识理解，知识理解。",
+      fields: { input: "输入问题", output: "参考答案" },
+    },
+    accuracy: {
+      formula: "Score = judge_score 均值",
+      desc: "TelecomLLMJudgeEvaluator 依据事实准确性、专业性和完整性进行语义评分。",
+      example: "逐条评估后取全量样本平均分作为任务得分。",
+    },
+    aisBench: { suite: "task_212_suite", evalType: "家客-知识理解（LLM 裁判语义评分）", shot: "0-shot", note: "数据文件 data/custom_task/task_212.jsonl；TelecomLLMJudgeEvaluator" },
+  },
+  "task_213_suite": {
+    format: {
+      type: "JSONL",
+      desc: "集客-知识理解，知识理解。",
+      fields: { input: "输入问题", output: "参考答案" },
+    },
+    accuracy: {
+      formula: "Score = judge_score 均值",
+      desc: "TelecomLLMJudgeEvaluator 依据事实准确性、专业性和完整性进行语义评分。",
+      example: "逐条评估后取全量样本平均分作为任务得分。",
+    },
+    aisBench: { suite: "task_213_suite", evalType: "集客-知识理解（LLM 裁判语义评分）", shot: "0-shot", note: "数据文件 data/custom_task/task_213.jsonl；TelecomLLMJudgeEvaluator" },
+  },
+  "task_214_suite": {
+    format: {
+      type: "JSONL",
+      desc: "个人业务-参数提取，参数提取。",
+      fields: { input: "输入问题", output: "参考答案" },
+    },
+    accuracy: {
+      formula: "Score = judge_score 均值",
+      desc: "TelecomLLMJudgeEvaluator 依据事实准确性、专业性和完整性进行语义评分。",
+      example: "逐条评估后取全量样本平均分作为任务得分。",
+    },
+    aisBench: { suite: "task_214_suite", evalType: "个人业务-参数提取（LLM 裁判语义评分）", shot: "0-shot", note: "数据目录 data/custom_task/task_214/（多子分类汇聚）；TelecomLLMJudgeEvaluator" },
+  },
+  "task_215_suite": {
+    format: {
+      type: "JSONL",
+      desc: "监控排障-参数提取，参数提取。",
+      fields: { input: "输入问题", output: "参考答案" },
+    },
+    accuracy: {
+      formula: "Score = judge_score 均值",
+      desc: "TelecomLLMJudgeEvaluator 依据事实准确性、专业性和完整性进行语义评分。",
+      example: "逐条评估后取全量样本平均分作为任务得分。",
+    },
+    aisBench: { suite: "task_215_suite", evalType: "监控排障-参数提取（LLM 裁判语义评分）", shot: "0-shot", note: "数据文件 data/custom_task/task_215.jsonl；TelecomLLMJudgeEvaluator" },
+  },
+  "task_216_suite": {
+    format: {
+      type: "JSONL",
+      desc: "个人业务-自主规划，自主规划。",
+      fields: { input: "输入问题", output: "参考答案" },
+    },
+    accuracy: {
+      formula: "Score = judge_score 均值",
+      desc: "TelecomLLMJudgeEvaluator 依据事实准确性、专业性和完整性进行语义评分。",
+      example: "逐条评估后取全量样本平均分作为任务得分。",
+    },
+    aisBench: { suite: "task_216_suite", evalType: "个人业务-自主规划（LLM 裁判语义评分）", shot: "0-shot", note: "数据文件 data/custom_task/task_216.jsonl；TelecomLLMJudgeEvaluator" },
+  },
+  "task_217_suite": {
+    format: {
+      type: "JSONL",
+      desc: "代维-自主规划，自主规划。",
+      fields: { input: "输入问题", output: "参考答案" },
+    },
+    accuracy: {
+      formula: "Score = judge_score 均值",
+      desc: "TelecomLLMJudgeEvaluator 依据事实准确性、专业性和完整性进行语义评分。",
+      example: "逐条评估后取全量样本平均分作为任务得分。",
+    },
+    aisBench: { suite: "task_217_suite", evalType: "代维-自主规划（LLM 裁判语义评分）", shot: "0-shot", note: "数据文件 data/custom_task/task_217.jsonl；TelecomLLMJudgeEvaluator" },
+  },
+  "task_218_suite": {
+    format: {
+      type: "JSONL",
+      desc: "监控排障-自主规划，自主规划。",
+      fields: { input: "输入问题", output: "参考答案" },
+    },
+    accuracy: {
+      formula: "Score = judge_score 均值",
+      desc: "TelecomLLMJudgeEvaluator 依据事实准确性、专业性和完整性进行语义评分。",
+      example: "逐条评估后取全量样本平均分作为任务得分。",
+    },
+    aisBench: { suite: "task_218_suite", evalType: "监控排障-自主规划（LLM 裁判语义评分）", shot: "0-shot", note: "数据文件 data/custom_task/task_218.jsonl；TelecomLLMJudgeEvaluator" },
+  },
+  "task_219_suite": {
+    format: {
+      type: "JSONL",
+      desc: "网络投诉-自主规划，自主规划。",
+      fields: { input: "输入问题", output: "参考答案" },
+    },
+    accuracy: {
+      formula: "Score = judge_score 均值",
+      desc: "TelecomLLMJudgeEvaluator 依据事实准确性、专业性和完整性进行语义评分。",
+      example: "逐条评估后取全量样本平均分作为任务得分。",
+    },
+    aisBench: { suite: "task_219_suite", evalType: "网络投诉-自主规划（LLM 裁判语义评分）", shot: "0-shot", note: "数据文件 data/custom_task/task_219.jsonl；TelecomLLMJudgeEvaluator" },
+  },
+  "task_220_suite": {
+    format: {
+      type: "JSONL",
+      desc: "资源管理-自主规划，自主规划。",
+      fields: { input: "输入问题", output: "参考答案" },
+    },
+    accuracy: {
+      formula: "Score = judge_score 均值",
+      desc: "TelecomLLMJudgeEvaluator 依据事实准确性、专业性和完整性进行语义评分。",
+      example: "逐条评估后取全量样本平均分作为任务得分。",
+    },
+    aisBench: { suite: "task_220_suite", evalType: "资源管理-自主规划（LLM 裁判语义评分）", shot: "0-shot", note: "数据文件 data/custom_task/task_220.jsonl；TelecomLLMJudgeEvaluator" },
+  },
+  "task_221_suite": {
+    format: {
+      type: "JSONL",
+      desc: "个人业务-诊断分析，诊断分析。",
+      fields: { input: "输入问题", output: "参考答案" },
+    },
+    accuracy: {
+      formula: "Score = judge_score 均值",
+      desc: "TelecomLLMJudgeEvaluator 依据事实准确性、专业性和完整性进行语义评分。",
+      example: "逐条评估后取全量样本平均分作为任务得分。",
+    },
+    aisBench: { suite: "task_221_suite", evalType: "个人业务-诊断分析（LLM 裁判语义评分）", shot: "0-shot", note: "数据文件 data/custom_task/task_221.jsonl；TelecomLLMJudgeEvaluator" },
+  },
+  "task_222_suite": {
+    format: {
+      type: "JSONL",
+      desc: "代维-诊断分析，诊断分析。",
+      fields: { input: "输入问题", output: "参考答案" },
+    },
+    accuracy: {
+      formula: "Score = judge_score 均值",
+      desc: "TelecomLLMJudgeEvaluator 依据事实准确性、专业性和完整性进行语义评分。",
+      example: "逐条评估后取全量样本平均分作为任务得分。",
+    },
+    aisBench: { suite: "task_222_suite", evalType: "代维-诊断分析（LLM 裁判语义评分）", shot: "0-shot", note: "数据文件 data/custom_task/task_222.jsonl；TelecomLLMJudgeEvaluator" },
+  },
+  "task_223_suite": {
+    format: {
+      type: "JSONL",
+      desc: "传输网-诊断分析，诊断分析。",
+      fields: { input: "输入问题", output: "参考答案" },
+    },
+    accuracy: {
+      formula: "Score = judge_score 均值",
+      desc: "TelecomLLMJudgeEvaluator 依据事实准确性、专业性和完整性进行语义评分。",
+      example: "逐条评估后取全量样本平均分作为任务得分。",
+    },
+    aisBench: { suite: "task_223_suite", evalType: "传输网-诊断分析（LLM 裁判语义评分）", shot: "0-shot", note: "数据文件 data/custom_task/task_223.jsonl；TelecomLLMJudgeEvaluator" },
+  },
+  "task_224_suite": {
+    format: {
+      type: "JSONL",
+      desc: "基础保障-诊断分析，诊断分析。",
+      fields: { input: "输入问题", output: "参考答案" },
+    },
+    accuracy: {
+      formula: "Score = judge_score 均值",
+      desc: "TelecomLLMJudgeEvaluator 依据事实准确性、专业性和完整性进行语义评分。",
+      example: "逐条评估后取全量样本平均分作为任务得分。",
+    },
+    aisBench: { suite: "task_224_suite", evalType: "基础保障-诊断分析（LLM 裁判语义评分）", shot: "0-shot", note: "数据文件 data/custom_task/task_224.jsonl；TelecomLLMJudgeEvaluator" },
+  },
+  "task_225_suite": {
+    format: {
+      type: "JSONL",
+      desc: "核心网-诊断分析，诊断分析。",
+      fields: { input: "输入问题", output: "参考答案" },
+    },
+    accuracy: {
+      formula: "Score = judge_score 均值",
+      desc: "TelecomLLMJudgeEvaluator 依据事实准确性、专业性和完整性进行语义评分。",
+      example: "逐条评估后取全量样本平均分作为任务得分。",
+    },
+    aisBench: { suite: "task_225_suite", evalType: "核心网-诊断分析（LLM 裁判语义评分）", shot: "0-shot", note: "数据目录 data/custom_task/task_225/（多子分类汇聚）；TelecomLLMJudgeEvaluator" },
+  },
+  "task_226_suite": {
+    format: {
+      type: "JSONL",
+      desc: "监控排障-诊断分析，诊断分析。",
+      fields: { input: "输入问题", output: "参考答案" },
+    },
+    accuracy: {
+      formula: "Score = judge_score 均值",
+      desc: "TelecomLLMJudgeEvaluator 依据事实准确性、专业性和完整性进行语义评分。",
+      example: "逐条评估后取全量样本平均分作为任务得分。",
+    },
+    aisBench: { suite: "task_226_suite", evalType: "监控排障-诊断分析（LLM 裁判语义评分）", shot: "0-shot", note: "数据文件 data/custom_task/task_226.jsonl；TelecomLLMJudgeEvaluator" },
+  },
+  "task_227_suite": {
+    format: {
+      type: "JSONL",
+      desc: "资源管理-诊断分析，诊断分析。",
+      fields: { input: "输入问题", output: "参考答案" },
+    },
+    accuracy: {
+      formula: "Score = judge_score 均值",
+      desc: "TelecomLLMJudgeEvaluator 依据事实准确性、专业性和完整性进行语义评分。",
+      example: "逐条评估后取全量样本平均分作为任务得分。",
+    },
+    aisBench: { suite: "task_227_suite", evalType: "资源管理-诊断分析（LLM 裁判语义评分）", shot: "0-shot", note: "数据文件 data/custom_task/task_227.jsonl；TelecomLLMJudgeEvaluator" },
+  },
+  "task_229_suite": {
+    format: {
+      type: "JSONL",
+      desc: "核心网-意图识别-参数提取，意图识别。",
+      fields: { input: "输入问题", output: "参考答案" },
+    },
+    accuracy: {
+      formula: "Score = judge_score 均值",
+      desc: "TelecomLLMJudgeEvaluator 依据事实准确性、专业性和完整性进行语义评分。",
+      example: "逐条评估后取全量样本平均分作为任务得分。",
+    },
+    aisBench: { suite: "task_229_suite", evalType: "核心网-意图识别-参数提取（LLM 裁判语义评分）", shot: "0-shot", note: "数据目录 data/custom_task/task_229/（多子分类汇聚）；TelecomLLMJudgeEvaluator" },
+  },
+  "task_234_suite": {
+    format: {
+      type: "JSONL",
+      desc: "入口智能体-测试集，入口智能体。",
+      fields: { input: "输入问题", output: "参考答案" },
+    },
+    accuracy: {
+      formula: "Score = judge_score 均值",
+      desc: "TelecomLLMJudgeEvaluator 依据事实准确性、专业性和完整性进行语义评分。",
+      example: "逐条评估后取全量样本平均分作为任务得分。",
+    },
+    aisBench: { suite: "task_234_suite", evalType: "入口智能体-测试集（LLM 裁判语义评分）", shot: "0-shot", note: "数据文件 data/custom_task/task_234.jsonl；TelecomLLMJudgeEvaluator" },
+  },
+  "task_235_suite": {
+    format: {
+      type: "JSONL",
+      desc: "安全-诊断分析，诊断分析。",
+      fields: { input: "输入问题", output: "参考答案" },
+    },
+    accuracy: {
+      formula: "Score = judge_score 均值",
+      desc: "TelecomLLMJudgeEvaluator 依据事实准确性、专业性和完整性进行语义评分。",
+      example: "逐条评估后取全量样本平均分作为任务得分。",
+    },
+    aisBench: { suite: "task_235_suite", evalType: "安全-诊断分析（LLM 裁判语义评分）", shot: "0-shot", note: "数据文件 data/custom_task/task_235.jsonl；TelecomLLMJudgeEvaluator" },
+  },
+  "task_236_suite": {
+    format: {
+      type: "JSONL",
+      desc: "家客-意图识别+信息提取，意图识别。",
+      fields: { input: "输入问题", output: "参考答案" },
+    },
+    accuracy: {
+      formula: "Score = judge_score 均值",
+      desc: "TelecomLLMJudgeEvaluator 依据事实准确性、专业性和完整性进行语义评分。",
+      example: "逐条评估后取全量样本平均分作为任务得分。",
+    },
+    aisBench: { suite: "task_236_suite", evalType: "家客-意图识别+信息提取（LLM 裁判语义评分）", shot: "0-shot", note: "数据目录 data/custom_task/task_236/（多子分类汇聚）；TelecomLLMJudgeEvaluator" },
+  },
+  "task_240_suite": {
+    format: {
+      type: "JSONL",
+      desc: "家客-意图识别-分类，意图识别。",
+      fields: { input: "输入问题", output: "参考答案" },
+    },
+    accuracy: {
+      formula: "Score = judge_score 均值",
+      desc: "TelecomLLMJudgeEvaluator 依据事实准确性、专业性和完整性进行语义评分。",
+      example: "逐条评估后取全量样本平均分作为任务得分。",
+    },
+    aisBench: { suite: "task_240_suite", evalType: "家客-意图识别-分类（LLM 裁判语义评分）", shot: "0-shot", note: "数据目录 data/custom_task/task_240/（多子分类汇聚）；TelecomLLMJudgeEvaluator" },
+  },
+  "task_247_suite": {
+    format: {
+      type: "JSONL",
+      desc: "家客-诊断分析，诊断分析。",
+      fields: { input: "输入问题", output: "参考答案" },
+    },
+    accuracy: {
+      formula: "Score = judge_score 均值",
+      desc: "TelecomLLMJudgeEvaluator 依据事实准确性、专业性和完整性进行语义评分。",
+      example: "逐条评估后取全量样本平均分作为任务得分。",
+    },
+    aisBench: { suite: "task_247_suite", evalType: "家客-诊断分析（LLM 裁判语义评分）", shot: "0-shot", note: "数据文件 data/custom_task/task_247.jsonl；TelecomLLMJudgeEvaluator" },
+  },
+  "task_250_suite": {
+    format: {
+      type: "JSONL",
+      desc: "网络投诉-信息提取，参数提取。",
+      fields: { input: "输入问题", output: "参考答案" },
+    },
+    accuracy: {
+      formula: "Score = judge_score 均值",
+      desc: "TelecomLLMJudgeEvaluator 依据事实准确性、专业性和完整性进行语义评分。",
+      example: "逐条评估后取全量样本平均分作为任务得分。",
+    },
+    aisBench: { suite: "task_250_suite", evalType: "网络投诉-信息提取（LLM 裁判语义评分）", shot: "0-shot", note: "数据目录 data/custom_task/task_250/（多子分类汇聚）；TelecomLLMJudgeEvaluator" },
+  },
+  "task_253_suite": {
+    format: {
+      type: "JSONL",
+      desc: "网络投诉-意图识别，意图识别。",
+      fields: { input: "输入问题", output: "参考答案" },
+    },
+    accuracy: {
+      formula: "Score = judge_score 均值",
+      desc: "TelecomLLMJudgeEvaluator 依据事实准确性、专业性和完整性进行语义评分。",
+      example: "逐条评估后取全量样本平均分作为任务得分。",
+    },
+    aisBench: { suite: "task_253_suite", evalType: "网络投诉-意图识别（LLM 裁判语义评分）", shot: "0-shot", note: "数据目录 data/custom_task/task_253/（多子分类汇聚）；TelecomLLMJudgeEvaluator" },
+  },
+  "task_256_suite": {
+    format: {
+      type: "JSONL",
+      desc: "集客-参数提取，参数提取。",
+      fields: { input: "输入问题", output: "参考答案" },
+    },
+    accuracy: {
+      formula: "Score = judge_score 均值",
+      desc: "TelecomLLMJudgeEvaluator 依据事实准确性、专业性和完整性进行语义评分。",
+      example: "逐条评估后取全量样本平均分作为任务得分。",
+    },
+    aisBench: { suite: "task_256_suite", evalType: "集客-参数提取（LLM 裁判语义评分）", shot: "0-shot", note: "数据目录 data/custom_task/task_256/（多子分类汇聚）；TelecomLLMJudgeEvaluator" },
+  },
+  "task_258_suite": {
+    format: {
+      type: "JSONL",
+      desc: "集客-意图识别，意图识别。",
+      fields: { input: "输入问题", output: "参考答案" },
+    },
+    accuracy: {
+      formula: "Score = judge_score 均值",
+      desc: "TelecomLLMJudgeEvaluator 依据事实准确性、专业性和完整性进行语义评分。",
+      example: "逐条评估后取全量样本平均分作为任务得分。",
+    },
+    aisBench: { suite: "task_258_suite", evalType: "集客-意图识别（LLM 裁判语义评分）", shot: "0-shot", note: "数据目录 data/custom_task/task_258/（多子分类汇聚）；TelecomLLMJudgeEvaluator" },
+  },
+  "task_260_suite": {
+    format: {
+      type: "JSONL",
+      desc: "集客-诊断分析，诊断分析。",
+      fields: { input: "输入问题", output: "参考答案" },
+    },
+    accuracy: {
+      formula: "Score = judge_score 均值",
+      desc: "TelecomLLMJudgeEvaluator 依据事实准确性、专业性和完整性进行语义评分。",
+      example: "逐条评估后取全量样本平均分作为任务得分。",
+    },
+    aisBench: { suite: "task_260_suite", evalType: "集客-诊断分析（LLM 裁判语义评分）", shot: "0-shot", note: "数据目录 data/custom_task/task_260/（多子分类汇聚）；TelecomLLMJudgeEvaluator" },
+  },
+
 };
