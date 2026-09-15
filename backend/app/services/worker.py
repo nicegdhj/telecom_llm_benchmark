@@ -364,6 +364,7 @@ async def _run_eval(db: Session, job: Job, settings):
             eval_version=eval_version,
             suite_name=run_suite_name,
             task_type=run_task_type,
+            max_samples=max_samples,
         )
 
         log_path = settings.logs_dir / f"task_{job.batch_id}_job_{job.id}.log"

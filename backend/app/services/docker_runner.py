@@ -65,6 +65,7 @@ def build_eval_cmd(
     eval_version: str,
     suite_name: str,
     task_type: str = "generic",
+    max_samples: int | None = None,
 ) -> list[str]:
     cmd = _common_docker_args(
         settings, job_id, env_file, f"eval-{job_id}-judge", task_type
@@ -75,6 +76,8 @@ def build_eval_cmd(
         "--eval-version", eval_version,
         "--eval-tasks", suite_name,
     ]
+    if max_samples is not None:
+        cmd += ["--num-prompts", str(max_samples)]
     return cmd
 
 

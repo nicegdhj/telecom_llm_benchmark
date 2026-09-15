@@ -87,6 +87,12 @@ def parse_args():
         default=False,
         help="跳过 LLM 打分类型的评测任务，只执行规则型评测",
     )
+    parser.add_argument(
+        "--num-prompts",
+        type=int,
+        default=None,
+        help="每个任务最多评测多少条数据（与推理阶段的 --num-prompts 保持一致，默认 None=全量）",
+    )
     return parser.parse_args()
 
 
@@ -155,6 +161,7 @@ def run_eval_for_task(
     infer_task_dir: Path,
     eval_dir: Path,
     task_timeout: int = 3600,
+    num_prompts: int = None,
 ) -> dict:
     """对单个任务执行评测，搬运结果到 eval_dir。"""
 
@@ -173,6 +180,8 @@ def run_eval_for_task(
         "--models", model_config,
         "--datasets", suite,
     ]
+    if num_prompts is not None:
+        cmd += ["--num-prompts", str(num_prompts)]
 
     # 任务开始前清理残留共享内存，防止前面任务的泄漏累积导致死锁
     _cleanup_leaked_shm()
@@ -354,6 +363,7 @@ def _run_rule_tasks_parallel(
     eval_dir: Path,
     max_workers: int,
     task_timeout: int,
+    num_prompts: int = None,
 ) -> list:
     """使用线程池并行执行规则型评测任务。"""
     print(f"\n📌 规则型评测：{len(rule_suites)} 个任务，并发={max_workers}")
@@ -374,6 +384,7 @@ def _run_rule_tasks_parallel(
                 infer_task_dir=infer_task_dir,
                 eval_dir=eval_dir,
                 task_timeout=task_timeout,
+                num_prompts=num_prompts,
             )
             future_to_suite[future] = suite
 
@@ -562,6 +573,7 @@ def main():
             eval_dir=eval_dir,
             max_workers=args.score_worker_concurrency,
             task_timeout=args.task_timeout,
+            num_prompts=args.num_prompts,
         )
         results.extend(rule_results)
 
@@ -588,6 +600,7 @@ def main():
                 infer_task_dir=infer_task_dir,
                 eval_dir=eval_dir,
                 task_timeout=args.task_timeout,
+                num_prompts=args.num_prompts,
             )
             results.append(result)
 
