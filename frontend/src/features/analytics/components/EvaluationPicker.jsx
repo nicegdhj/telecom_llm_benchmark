@@ -20,8 +20,16 @@ export function EvaluationPicker({ selectedIds = [], onChange }) {
   const [picked, setPicked] = useState({});
 
   const { data: models = [] } = useQuery({ queryKey: ['models'], queryFn: () => api.models.list() });
-  const { data: tasks = [] } = useQuery({ queryKey: ['tasks'], queryFn: () => api.tasks.list() });
+  const { data: tasks = [] } = useQuery({ queryKey: ['tasks'], queryFn: () => api.tasks.list(), staleTime: 5 * 60 * 1000 });
   const { data: batches = [] } = useQuery({ queryKey: ['batches'], queryFn: () => api.batches.list() });
+
+  const taskNameMap = useMemo(() => {
+    const m = new Map();
+    for (const t of tasks) {
+      if (t.key && t.display_name) m.set(t.key, t.display_name);
+    }
+    return m;
+  }, [tasks]);
 
   const { data: rows = [], isLoading } = useQuery({
     queryKey: ['evaluations-search', filter],
@@ -114,7 +122,7 @@ export function EvaluationPicker({ selectedIds = [], onChange }) {
                 />
                 <span className="font-medium text-gray-700">{g.model_name}</span>
                 <span className="text-gray-300">·</span>
-                <span className="font-mono text-gray-600">{g.task_key}</span>
+                <span className="text-gray-700" title={g.task_key}>{taskNameMap.get(g.task_key) || g.task_key}</span>
                 <span className="px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 text-[11px]">{g.batch_name}</span>
 
                 {g.versions.length > 1 ? (

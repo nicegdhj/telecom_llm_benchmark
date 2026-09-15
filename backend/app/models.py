@@ -126,6 +126,7 @@ class Batch(Base):
     mode = Column(String, default="all")  # infer | eval | all
     default_eval_version = Column(String, default="eval_init")
     default_judge_id = Column(Integer, ForeignKey("judges.id"))
+    max_samples_per_task = Column(Integer)
     notes = Column(Text)
     created_by_user_id = Column(Integer, ForeignKey("users.id"))
     last_modified_by_user_id = Column(Integer, ForeignKey("users.id"))

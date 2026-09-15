@@ -8,16 +8,18 @@ import { useState, useMemo } from 'react';
  * - higherIsBetter=false（耗时）：低于基准→绿（更快），高于→红
  * - 不选基准则无着色。基准行自身标「基准」、不着色。
  */
-export function MetricMatrix({ rows, metric, higherIsBetter }) {
+export function MetricMatrix({ rows, metric, higherIsBetter, taskNameMap }) {
   const [baseline, setBaseline] = useState(null);
+
+  const taskName = (key) => taskNameMap?.get(key) || key;
 
   const models = useMemo(
     () => [...new Map(rows.map((r) => [r.model_id, { id: r.model_id, name: r.model_name }])).values()],
     [rows],
   );
   const tasks = useMemo(
-    () => [...new Map(rows.map((r) => [r.task_id, { id: r.task_id, key: r.task_key }])).values()],
-    [rows],
+    () => [...new Map(rows.map((r) => [r.task_id, { id: r.task_id, key: r.task_key, name: taskName(r.task_key) }])).values()],
+    [rows, taskNameMap],
   );
 
   const valueOf = (mid, tid) => {
@@ -69,8 +71,8 @@ export function MetricMatrix({ rows, metric, higherIsBetter }) {
                 模型
               </th>
               {tasks.map((t) => (
-                <th key={t.id} className="px-3 py-2.5 font-mono text-[11px] font-semibold text-gray-500 text-center min-w-[84px]">
-                  {t.key}
+                <th key={t.id} className="px-3 py-2.5 text-[11px] font-semibold text-gray-600 text-center min-w-[84px] max-w-[160px] truncate" title={t.key}>
+                  {t.name}
                 </th>
               ))}
             </tr>

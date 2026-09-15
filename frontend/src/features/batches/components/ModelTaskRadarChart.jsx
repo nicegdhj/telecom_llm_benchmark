@@ -8,14 +8,16 @@ const CHART = {
 };
 const colors = ['#0C5CAB', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4'];
 
-export function ModelTaskRadarChart({ rows }) {
+export function ModelTaskRadarChart({ rows, taskNameMap }) {
   const [selectedModels, setSelectedModels] = useState([]);
 
+  const taskName = (key) => taskNameMap?.get(key) || key;
+
   const models = useMemo(() => [...new Map(rows.filter(r => r.accuracy != null).map(r => [r.model_id, { id: r.model_id, name: r.model_name }])).values()], [rows]);
-  const tasks  = useMemo(() => [...new Map(rows.filter(r => r.accuracy != null).map(r => [r.task_id,  { id: r.task_id,  key: r.task_key  }])).values()], [rows]);
+  const tasks  = useMemo(() => [...new Map(rows.filter(r => r.accuracy != null).map(r => [r.task_id,  { id: r.task_id,  key: r.task_key, name: taskName(r.task_key) }])).values()], [rows, taskNameMap]);
 
   const chartData = useMemo(() => tasks.map(t => {
-    const point = { task: t.key };
+    const point = { task: t.name, taskKey: t.key };
     for (const m of models) { const row = rows.find(r => r.model_id === m.id && r.task_id === t.id); point[m.name] = row?.accuracy ?? 0; }
     return point;
   }), [rows, models, tasks]);

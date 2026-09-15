@@ -115,7 +115,8 @@ def _enrich_batch(db: Session, b: Batch) -> BatchOut:
     out.eval_config = {
         "评测模型": models_info,
         "打分模型": judge_info or "未启用打分模型",
-        "评测数据集": tasks_info
+        "评测数据集": tasks_info,
+        "单任务测评数据量": (f"{b.max_samples_per_task} 条/任务" if b.max_samples_per_task else "无限制"),
     }
     return out
 
@@ -282,6 +283,7 @@ def clone(bid: int, payload: CloneBatchIn,
         task_version_map=task_version_map,
         default_eval_version=src.default_eval_version,
         default_judge_id=src.default_judge_id,
+        max_samples_per_task=src.max_samples_per_task,
         notes=src.notes,
     )
     new_batch = create_batch(db, new_payload, actor_user_id=actor.id)

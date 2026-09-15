@@ -47,7 +47,7 @@ export function BatchesPage() {
   const [form, setForm] = useState({
     name: '', mode: 'all', model_ids: [], task_ids: [],
     task_version_map: {},
-    default_eval_version: 'eval_init', default_judge_id: '', notes: '',
+    default_eval_version: 'eval_init', default_judge_id: '', max_samples_per_task: '', notes: '',
   });
 
   const { data: batches, isLoading } = useQuery({ queryKey: ['batches'], queryFn: api.batches.list });
@@ -60,7 +60,7 @@ export function BatchesPage() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['batches'] });
       setModalOpen(false);
-      setForm({ name: '', mode: 'all', model_ids: [], task_ids: [], task_version_map: {}, default_eval_version: 'eval_init', default_judge_id: '', notes: '' });
+      setForm({ name: '', mode: 'all', model_ids: [], task_ids: [], task_version_map: {}, default_eval_version: 'eval_init', default_judge_id: '', max_samples_per_task: '', notes: '' });
     },
   });
 
@@ -124,6 +124,7 @@ export function BatchesPage() {
       model_ids: form.model_ids.map(Number),
       task_ids: form.task_ids.map(Number),
       default_judge_id: form.default_judge_id ? Number(form.default_judge_id) : null,
+      max_samples_per_task: (() => { const v = Number(form.max_samples_per_task); return Number.isInteger(v) && v >= 1 ? v : null; })(),
     };
     // 过滤未选中任务的版本
     const filteredVersionMap = {};
@@ -334,6 +335,17 @@ export function BatchesPage() {
                 {judges?.map(j => <option key={j.id} value={j.id}>{j.name}</option>)}
               </select>
             </div>
+          </div>
+          <div>
+            <label className="label">单任务测评数据量</label>
+            <input
+              type="number"
+              min="1"
+              className="input"
+              placeholder="留空=无限制；填 N 则每个任务按顺序最多取 N 条"
+              value={form.max_samples_per_task}
+              onChange={e => setForm({ ...form, max_samples_per_task: e.target.value })}
+            />
           </div>
           <div>
             <label className="label">备注</label>

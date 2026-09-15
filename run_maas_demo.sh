@@ -58,19 +58,19 @@ set -a; source "$(dirname "$0")/.env"; set +a
 
 
 
-ais_bench \
-  --models common_gateway \
-  --datasets \
-    ot_3gpp_tsg \
-    ot_oranbench \
-    ot_sixg_bench \
-    ot_srsranbench \
-    ot_telelogs \
-    ot_telemath \
-    ot_teleqna \
-    ot_teletables \
-  --debug \
-  --num-prompts 1
+#ais_bench \
+#  --models common_gateway \
+#  --datasets \
+#    ot_3gpp_tsg \
+#    ot_oranbench \
+#    ot_sixg_bench \
+#    ot_srsranbench \
+#    ot_telelogs \
+#    ot_telemath \
+#    ot_teleqna \
+#    ot_teletables \
+#  --debug \
+#  --num-prompts 1
 
 ais_bench \
   --models common_gateway \
@@ -86,6 +86,32 @@ ais_bench \
     task_209_suite \
     task_210_suite \
     task_211_suite \
+    task_212_suite \
+    task_213_suite \
+    task_214_suite \
+    task_215_suite \
+    task_216_suite \
+    task_217_suite \
+    task_218_suite \
+    task_219_suite \
+    task_220_suite \
+    task_221_suite \
+    task_222_suite \
+    task_223_suite \
+    task_224_suite \
+    task_225_suite \
+    task_226_suite \
+    task_227_suite \
+    task_234_suite \
+    task_235_suite \
+    task_236_suite \
+    task_240_suite \
+    task_247_suite \
+    task_250_suite \
+    task_253_suite \
+    task_256_suite \
+    task_258_suite \
+    task_260_suite \
   --debug \
   --num-prompts 1
 

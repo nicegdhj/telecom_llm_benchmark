@@ -5,6 +5,8 @@
 - v2：加入用户/会话表，并给 batches/batch_revisions/jobs 加 user FK
 - v3：models.host / models.port 改为可空
 - v4：predictions/evaluations/jobs 加 version_label；新增 analysis_views 表；回填历史 version_label
+- v5：models 加 auth_header（maas_gateway 鉴权头名称可配）
+- v6：batches 加 max_samples_per_task（单任务测评数据量上限）
 """
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -12,7 +14,7 @@ from sqlalchemy.orm import Session
 from backend.app.models import SchemaVersion
 
 
-CURRENT_VERSION = 5
+CURRENT_VERSION = 6
 
 
 def _has_table(session: Session, name: str) -> bool:
@@ -82,6 +84,10 @@ def run_migrations(session: Session):
     # v4 → v5：maas_gateway 鉴权头名称可配（老数据回填默认 Authorization-Gateway）
     _add_column_if_missing(session, "models", "auth_header",
                            "auth_header VARCHAR DEFAULT 'Authorization-Gateway'")
+
+    # v5 → v6：batches 加 max_samples_per_task（单任务测评数据量上限，None=全量）
+    _add_column_if_missing(session, "batches", "max_samples_per_task",
+                           "max_samples_per_task INTEGER")
 
     _write_version(session, CURRENT_VERSION)
 

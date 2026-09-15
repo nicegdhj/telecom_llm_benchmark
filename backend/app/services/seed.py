@@ -11,7 +11,7 @@ from backend.app.task_meta import TASK_DATA_PATH, TASK_META
 # 默认任务集（与 run_mixed_benchmark.sh 第 284~304 行保持一致）。
 # 启动时与 backend/scripts/seed_tasks.py 共用此清单，避免重复定义。
 DEFAULT_GENERIC = [
-    "alarm_data_gen_0_shot", "ceval_gen_0_shot_str", "mmlu_redux_gen_5_shot_str",
+    "ceval_gen_0_shot_str", "mmlu_redux_gen_5_shot_str",
     "teledata_gen_0_shot", "gpqa_gen_0_shot_str", "bbh_gen_3_shot_cot_chat",
     "BFCL_gen_simple", "ifeval_0_shot_gen_str", "math500_gen_0_shot_cot_chat_prompt",
     "aime2025_gen_0_shot_chat_prompt", "telemath_gen_0_cot_shot", "teleqna_gen_0_shot",
@@ -22,8 +22,13 @@ DEFAULT_GENERIC = [
     "ot_telelogs", "ot_telemath", "ot_teleqna", "ot_teletables",
 ]
 DEFAULT_CUSTOM = [
-    1, 34, 36, 43, 44, 60, 101, 102, 105, 106, 107,
-    201, 202, 203, 204, 205, 206, 207, 208, 209, 210, 211,
+    1, 34, 36, 43, 44, 60, 101, 102,
+    # 非合并 task（2段式，单数据集）
+    201, 202, 203, 204, 205, 206, 207, 208, 211, 212, 213,
+    215, 216, 217, 218, 219, 220, 221, 222, 223, 224, 226, 227,
+    234, 235, 247,
+    # 合并 task（3段式汇聚，多子数据集）
+    209, 210, 214, 225, 229, 236, 240, 250, 253, 256, 258, 260,
 ]
 
 

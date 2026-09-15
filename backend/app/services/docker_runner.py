@@ -36,6 +36,7 @@ def build_infer_cmd(
     task_type: str,          # 'custom' | 'generic'
     custom_task_num: int | None,
     suite_name: str,
+    max_samples: int | None = None,
 ) -> list[str]:
     cmd = _common_docker_args(
         settings, job_id, env_file, f"eval-{job_id}-infer", task_type
@@ -51,6 +52,8 @@ def build_infer_cmd(
         cmd += ["--tasks", str(custom_task_num)]
     else:
         cmd += ["--generic-datasets", suite_name]
+    if max_samples is not None:
+        cmd += ["--num-prompts", str(max_samples)]
     return cmd
 
 

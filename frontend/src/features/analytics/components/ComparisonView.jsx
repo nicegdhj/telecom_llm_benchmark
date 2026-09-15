@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../../lib/api';
 import { Card, CardBody, CardHeader } from '../../../components/ui/Card';
@@ -31,6 +31,20 @@ export function ComparisonView({ selectedIds = [] }) {
     queryFn: () => api.evaluations.search({ eval_ids: selectedIds, limit: 1000 }),
     enabled: selectedIds.length > 0,
   });
+
+  // 获取 task 列表，构建 task_key → display_name 映射
+  const { data: taskList = [] } = useQuery({
+    queryKey: ['tasks-for-namemap'],
+    queryFn: () => api.tasks.list(),
+    staleTime: 5 * 60 * 1000,
+  });
+  const taskNameMap = useMemo(() => {
+    const m = new Map();
+    for (const t of taskList) {
+      if (t.key && t.display_name) m.set(t.key, t.display_name);
+    }
+    return m;
+  }, [taskList]);
 
   if (selectedIds.length === 0) {
     return (
@@ -66,9 +80,9 @@ export function ComparisonView({ selectedIds = [] }) {
         </div>
       </CardHeader>
       <CardBody>
-        {active === 'table' && <DetailTable rows={rows} />}
-        {active === 'accuracy' && <MetricMatrix rows={rows} metric="accuracy" higherIsBetter />}
-        {active === 'duration' && <MetricMatrix rows={rows} metric="duration" higherIsBetter={false} />}
+        {active === 'table' && <DetailTable rows={rows} taskNameMap={taskNameMap} />}
+        {active === 'accuracy' && <MetricMatrix rows={rows} metric="accuracy" higherIsBetter taskNameMap={taskNameMap} />}
+        {active === 'duration' && <MetricMatrix rows={rows} metric="duration" higherIsBetter={false} taskNameMap={taskNameMap} />}
         {active === 'radar' && (
           <div className="space-y-3">
             <div className="flex gap-2 text-xs text-gray-500 bg-blue-50/50 border border-blue-100 rounded-lg px-3 py-2">
@@ -78,7 +92,7 @@ export function ComparisonView({ selectedIds = [] }) {
                 圈越鼓综合越强，某个角凹进去说明该模型在那个任务是短板。适合 3–6 个任务、2–4 个模型横向比；任务太少时建议看「准确率矩阵」。
               </p>
             </div>
-            <ModelTaskRadarChart rows={rows} />
+            <ModelTaskRadarChart rows={rows} taskNameMap={taskNameMap} />
           </div>
         )}
       </CardBody>
@@ -87,7 +101,8 @@ export function ComparisonView({ selectedIds = [] }) {
 }
 
 
-function DetailTable({ rows }) {
+function DetailTable({ rows, taskNameMap }) {
+  const taskName = (key) => taskNameMap?.get(key) || key;
   return (
     <div className="overflow-x-auto">
       <table className="min-w-full text-sm divide-y divide-gray-100">
@@ -103,7 +118,10 @@ function DetailTable({ rows }) {
             <tr key={r.id} className="hover:bg-gray-50">
               <td className="px-3 py-2 font-mono text-gray-400">#{r.id}</td>
               <td className="px-3 py-2 font-medium text-gray-800">{r.model_name}</td>
-              <td className="px-3 py-2 font-mono text-gray-600">{r.task_key}</td>
+              <td className="px-3 py-2 text-gray-700" title={r.task_key}>
+                <span className="font-medium">{taskName(r.task_key)}</span>
+                <span className="font-mono text-xs text-gray-400 ml-1.5">{r.task_key}</span>
+              </td>
               <td className="px-3 py-2 text-gray-500">{r.batch_name}</td>
               <td className="px-3 py-2 font-mono text-gray-500">{r.version_label}</td>
               <td className="px-3 py-2">

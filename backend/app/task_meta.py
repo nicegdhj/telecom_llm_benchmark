@@ -3,12 +3,11 @@
 # 新增任务时直接在此 dict 追加一行即可。
 #
 # ALLOWED_TASK_KEYS：平台「任务与数据」页面唯一展示白名单 + 展示顺序，
-#   与 run_mixed_benchmark.sh 第 284~304 行的 --tasks / --generic-datasets 保持一致。
+#   与 run_mixed_benchmark.sh 的 --tasks / --generic-datasets 保持一致。
 #   不在此清单内的任务（即使数据库已存在）一律不展示。
 
 TASK_META: dict[str, dict[str, str]] = {
     # ── 通用任务 ────────────────────────────────────────────────────
-    "alarm_data_gen_0_shot":              {"alias": "告警聚类降噪",               "category": "运维-告警聚类"},
     "ceval_gen_0_shot_str":               {"alias": "C-Eval",                    "category": "知识类"},
     "mmlu_redux_gen_5_shot_str":          {"alias": "MMLU-Redux",                "category": "知识类"},
     "gpqa_gen_0_shot_str":                {"alias": "GPQA-Diamond",              "category": "推理类"},
@@ -37,9 +36,6 @@ TASK_META: dict[str, dict[str, str]] = {
     "task_60_suite":  {"alias": "投诉调度智能体-是否省内网络投诉",               "category": "意图理解-分类"},
     "task_101_suite": {"alias": "专业知识问答-综合知识型",                       "category": "知识问答"},
     "task_102_suite": {"alias": "多专业知识问答-传输/核心网/集客/家客知识型",     "category": "知识问答"},
-    "task_105_suite": {"alias": "家庭支撑智能体-连续对话最终轮评测",           "category": "意图理解-多轮对话"},
-    "task_106_suite": {"alias": "家庭支撑智能体-连续对话逐轮评测",             "category": "意图理解-多轮对话"},
-    "task_107_suite": {"alias": "安全管理智能体-网络安全告警研判(binary_gpt)", "category": "意图理解-分类"},
     # ── 公开通信题库 ────────────────────────────────────────────────
     "ot_3gpp_tsg":    {"alias": "ot_3gpp_tsg",    "category": "公开通信题库"},
     "ot_oranbench":   {"alias": "ot_oranbench",   "category": "公开通信题库"},
@@ -49,35 +45,71 @@ TASK_META: dict[str, dict[str, str]] = {
     "ot_telemath":    {"alias": "ot_telemath",    "category": "公开通信题库"},
     "ot_teleqna":     {"alias": "ot_teleqna",     "category": "公开通信题库"},
     "ot_teletables":  {"alias": "ot_teletables",  "category": "公开通信题库"},
-    # ── 20260821 专业题库 ───────────────────────────────────────────
-    "task_201_suite": {"alias": "资源管理-知识理解", "category": "知识理解"},
-    "task_202_suite": {"alias": "传输网-知识理解", "category": "知识理解"},
-    "task_203_suite": {"alias": "代维-知识理解", "category": "知识理解"},
-    "task_204_suite": {"alias": "个人业务-知识理解", "category": "知识理解"},
-    "task_205_suite": {"alias": "核心网-知识理解", "category": "知识理解"},
-    "task_206_suite": {"alias": "基础保障-知识理解", "category": "知识理解"},
-    "task_207_suite": {"alias": "监控排障-知识理解", "category": "知识理解"},
-    "task_208_suite": {"alias": "网络投诉-知识理解", "category": "知识理解"},
-    "task_209_suite": {"alias": "个人业务-意图识别", "category": "意图识别"},
-    "task_210_suite": {"alias": "核心网-意图识别", "category": "意图识别"},
-    "task_211_suite": {"alias": "监控排障-意图识别", "category": "意图识别"},
+    # ── 20260908 专业题库（非合并，单数据集）─────────────────────────
+    "task_201_suite": {"alias": "资源管理-知识理解",               "category": "知识理解"},
+    "task_202_suite": {"alias": "传输网-知识理解",                 "category": "知识理解"},
+    "task_203_suite": {"alias": "代维-知识理解",                   "category": "知识理解"},
+    "task_204_suite": {"alias": "个人业务-知识理解",               "category": "知识理解"},
+    "task_205_suite": {"alias": "核心网-知识理解",                 "category": "知识理解"},
+    "task_206_suite": {"alias": "基础保障-知识理解",               "category": "知识理解"},
+    "task_207_suite": {"alias": "监控排障-知识理解",               "category": "知识理解"},
+    "task_208_suite": {"alias": "网络投诉-知识理解",               "category": "知识理解"},
+    "task_211_suite": {"alias": "监控排障-意图识别",               "category": "意图识别"},
+    "task_212_suite": {"alias": "家客-知识理解",                   "category": "知识理解"},
+    "task_213_suite": {"alias": "集客-知识理解",                   "category": "知识理解"},
+    "task_215_suite": {"alias": "监控排障-参数提取",               "category": "参数提取"},
+    "task_216_suite": {"alias": "个人业务-自主规划",               "category": "自主规划"},
+    "task_217_suite": {"alias": "代维-自主规划",                   "category": "自主规划"},
+    "task_218_suite": {"alias": "监控排障-自主规划",               "category": "自主规划"},
+    "task_219_suite": {"alias": "网络投诉-自主规划",               "category": "自主规划"},
+    "task_220_suite": {"alias": "资源管理-自主规划",               "category": "自主规划"},
+    "task_221_suite": {"alias": "个人业务-诊断分析",               "category": "诊断分析"},
+    "task_222_suite": {"alias": "代维-诊断分析",                   "category": "诊断分析"},
+    "task_223_suite": {"alias": "传输网-诊断分析",                 "category": "诊断分析"},
+    "task_224_suite": {"alias": "基础保障-诊断分析",               "category": "诊断分析"},
+    "task_226_suite": {"alias": "监控排障-诊断分析",               "category": "诊断分析"},
+    "task_227_suite": {"alias": "资源管理-诊断分析",               "category": "诊断分析"},
+    "task_234_suite": {"alias": "入口智能体-测试集",               "category": "入口智能体"},
+    "task_235_suite": {"alias": "安全-诊断分析",                   "category": "诊断分析"},
+    "task_247_suite": {"alias": "家客-诊断分析",                   "category": "诊断分析"},
+    # ── 20260908 专业题库（合并，多子数据集汇聚）────────────────────
+    "task_209_suite": {"alias": "个人业务-意图识别",               "category": "意图识别"},
+    "task_210_suite": {"alias": "核心网-意图识别-分类",            "category": "意图识别"},
+    "task_214_suite": {"alias": "个人业务-参数提取",               "category": "参数提取"},
+    "task_225_suite": {"alias": "核心网-诊断分析",                 "category": "诊断分析"},
+    "task_229_suite": {"alias": "核心网-意图识别-参数提取",        "category": "意图识别"},
+    "task_236_suite": {"alias": "家客-意图识别+信息提取",          "category": "意图识别"},
+    "task_240_suite": {"alias": "家客-意图识别-分类",              "category": "意图识别"},
+    "task_250_suite": {"alias": "网络投诉-信息提取",               "category": "参数提取"},
+    "task_253_suite": {"alias": "网络投诉-意图识别",               "category": "意图识别"},
+    "task_256_suite": {"alias": "集客-参数提取",                   "category": "参数提取"},
+    "task_258_suite": {"alias": "集客-意图识别",                   "category": "意图识别"},
+    "task_260_suite": {"alias": "集客-诊断分析",                   "category": "诊断分析"},
 }
 
 
-# 「任务与数据」页面展示白名单 + 顺序（对齐 run_mixed_benchmark.sh 284~304 行）
+# 「任务与数据」页面展示白名单 + 顺序
 ALLOWED_TASK_KEYS: list[str] = [
-    # 自定义任务（--tasks 1 34 36 43 44 60 101 102）
+    # 自定义任务
     "task_1_suite", "task_34_suite", "task_36_suite", "task_43_suite",
     "task_44_suite", "task_60_suite", "task_101_suite", "task_102_suite",
-    "task_105_suite", "task_106_suite", "task_107_suite",
-    # 新增公开通信题库与专业题库任务
-    "ot_3gpp_tsg", "ot_oranbench", "ot_sixg_bench", "ot_srsranbench",
-    "ot_telelogs", "ot_telemath", "ot_teleqna", "ot_teletables",
+    # 非合并 task_2xx（单数据集）
     "task_201_suite", "task_202_suite", "task_203_suite", "task_204_suite",
     "task_205_suite", "task_206_suite", "task_207_suite", "task_208_suite",
-    "task_209_suite", "task_210_suite", "task_211_suite",
-    # 通用数据集（--generic-datasets 顺序）
-    "alarm_data_gen_0_shot", "ceval_gen_0_shot_str", "mmlu_redux_gen_5_shot_str",
+    "task_211_suite", "task_212_suite", "task_213_suite", "task_215_suite",
+    "task_216_suite", "task_217_suite", "task_218_suite", "task_219_suite",
+    "task_220_suite", "task_221_suite", "task_222_suite", "task_223_suite",
+    "task_224_suite", "task_226_suite", "task_227_suite",
+    "task_234_suite", "task_235_suite", "task_247_suite",
+    # 合并 task_2xx（多子数据集汇聚）
+    "task_209_suite", "task_210_suite", "task_214_suite", "task_225_suite",
+    "task_229_suite", "task_236_suite", "task_240_suite", "task_250_suite",
+    "task_253_suite", "task_256_suite", "task_258_suite", "task_260_suite",
+    # 公开通信题库
+    "ot_3gpp_tsg", "ot_oranbench", "ot_sixg_bench", "ot_srsranbench",
+    "ot_telelogs", "ot_telemath", "ot_teleqna", "ot_teletables",
+    # 通用数据集
+    "ceval_gen_0_shot_str", "mmlu_redux_gen_5_shot_str",
     "teledata_gen_0_shot", "gpqa_gen_0_shot_str", "bbh_gen_3_shot_cot_chat",
     "BFCL_gen_simple", "ifeval_0_shot_gen_str", "math500_gen_0_shot_cot_chat_prompt",
     "aime2025_gen_0_shot_chat_prompt", "telemath_gen_0_cot_shot", "teleqna_gen_0_shot",
@@ -95,7 +127,6 @@ TASK_ORDER: dict[str, int] = {k: i for i, k in enumerate(ALLOWED_TASK_KEYS)}
 # 路径指向文件 → 打包该文件；指向目录 → 打包整个目录。
 TASK_DATA_PATH: dict[str, str] = {
     # ── 通用任务 ──
-    "alarm_data_gen_0_shot":              "data/alarm_data/train_data_v3_overfit.json",
     "ceval_gen_0_shot_str":               "data/ceval/formal_ceval",
     "mmlu_redux_gen_5_shot_str":          "data/mmlu_redux",
     "teledata_gen_0_shot":                "data/Tele-Data",
@@ -123,9 +154,6 @@ TASK_DATA_PATH: dict[str, str] = {
     "task_60_suite":  "data/custom_task/task_60.jsonl",
     "task_101_suite": "data/custom_task/task_101.jsonl",
     "task_102_suite": "data/task_102",
-    "task_105_suite": "data/custom_task/task_105.jsonl",
-    "task_106_suite": "data/custom_task/task_106.jsonl",
-    "task_107_suite": "data/custom_task/task_107.jsonl",
     # ── 公开通信题库 ──
     "ot_3gpp_tsg":    "data/ot-full/3gpp_tsg/test-00000-of-00001.jsonl",
     "ot_oranbench":   "data/ot-full/oranbench/test-00000-of-00001.jsonl",
@@ -135,7 +163,7 @@ TASK_DATA_PATH: dict[str, str] = {
     "ot_telemath":    "data/ot-full/telemath/test-00000-of-00001.jsonl",
     "ot_teleqna":     "data/ot-full/teleqna/test-00000-of-00001.jsonl",
     "ot_teletables":  "data/ot-full/teletables/test-00000-of-00001.jsonl",
-    # ── 20260821 专业题库 ──
+    # ── 20260908 专业题库（非合并，单数据集，jsonl 文件）──
     "task_201_suite": "data/custom_task/task_201.jsonl",
     "task_202_suite": "data/custom_task/task_202.jsonl",
     "task_203_suite": "data/custom_task/task_203.jsonl",
@@ -144,7 +172,35 @@ TASK_DATA_PATH: dict[str, str] = {
     "task_206_suite": "data/custom_task/task_206.jsonl",
     "task_207_suite": "data/custom_task/task_207.jsonl",
     "task_208_suite": "data/custom_task/task_208.jsonl",
-    "task_209_suite": "data/custom_task/task_209.jsonl",
-    "task_210_suite": "data/custom_task/task_210.jsonl",
     "task_211_suite": "data/custom_task/task_211.jsonl",
+    "task_212_suite": "data/custom_task/task_212.jsonl",
+    "task_213_suite": "data/custom_task/task_213.jsonl",
+    "task_215_suite": "data/custom_task/task_215.jsonl",
+    "task_216_suite": "data/custom_task/task_216.jsonl",
+    "task_217_suite": "data/custom_task/task_217.jsonl",
+    "task_218_suite": "data/custom_task/task_218.jsonl",
+    "task_219_suite": "data/custom_task/task_219.jsonl",
+    "task_220_suite": "data/custom_task/task_220.jsonl",
+    "task_221_suite": "data/custom_task/task_221.jsonl",
+    "task_222_suite": "data/custom_task/task_222.jsonl",
+    "task_223_suite": "data/custom_task/task_223.jsonl",
+    "task_224_suite": "data/custom_task/task_224.jsonl",
+    "task_226_suite": "data/custom_task/task_226.jsonl",
+    "task_227_suite": "data/custom_task/task_227.jsonl",
+    "task_234_suite": "data/custom_task/task_234.jsonl",
+    "task_235_suite": "data/custom_task/task_235.jsonl",
+    "task_247_suite": "data/custom_task/task_247.jsonl",
+    # ── 20260908 专业题库（合并，多子数据集，目录）──
+    "task_209_suite": "data/custom_task/task_209",
+    "task_210_suite": "data/custom_task/task_210",
+    "task_214_suite": "data/custom_task/task_214",
+    "task_225_suite": "data/custom_task/task_225",
+    "task_229_suite": "data/custom_task/task_229",
+    "task_236_suite": "data/custom_task/task_236",
+    "task_240_suite": "data/custom_task/task_240",
+    "task_250_suite": "data/custom_task/task_250",
+    "task_253_suite": "data/custom_task/task_253",
+    "task_256_suite": "data/custom_task/task_256",
+    "task_258_suite": "data/custom_task/task_258",
+    "task_260_suite": "data/custom_task/task_260",
 }

@@ -160,6 +160,7 @@ class BatchCreate(BaseModel):
     task_version_map: dict[int, int] | None = None
     default_eval_version: str = "eval_init"
     default_judge_id: int | None = None
+    max_samples_per_task: int | None = Field(default=None, ge=1)
     notes: str | None = None
 
 
@@ -183,6 +184,7 @@ class BatchOut(BaseModel):
     mode: str
     default_eval_version: str
     default_judge_id: int | None
+    max_samples_per_task: int | None = None
     notes: str | None
     created_by: UserBrief | None = None
     last_modified_by: UserBrief | None = None

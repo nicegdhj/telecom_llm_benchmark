@@ -200,6 +200,12 @@ async def _run_infer(db: Session, job: Job, settings):
                 )
 
         env_file = write_env_file(settings, job.id, _env_vars_for_model(model))
+        # 从 batch 读取单任务测评数据量上限（None=全量）
+        max_samples = None
+        if job.batch_id:
+            batch = db.get(Batch, job.batch_id)
+            if batch:
+                max_samples = batch.max_samples_per_task or None
         cmd = build_infer_cmd(
             settings=settings, job_id=job.id, env_file=env_file,
             output_task_id=output_task_id,
@@ -209,6 +215,7 @@ async def _run_infer(db: Session, job: Job, settings):
             task_type=run_task_type,
             custom_task_num=run_custom_task_num,
             suite_name=run_suite_name,
+            max_samples=max_samples,
         )
 
         log_path = settings.logs_dir / f"task_{job.batch_id}_job_{job.id}.log"

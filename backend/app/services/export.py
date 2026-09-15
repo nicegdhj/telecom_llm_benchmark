@@ -181,6 +181,7 @@ def _collect_rows(db: Session, evaluation_ids: list[int], tokenizer=None) -> lis
             "model_name": model.name if model else None,
             "task_id": pred.task_id if pred else None,
             "task_key": task.key if task else None,
+            "task_display_name": task.display_name if task and task.display_name else (task.key if task else None),
             "batch_id": batch.id if batch else None,
             "batch_name": batch.name if batch else None,
             "details_path": ev.details_path,
@@ -214,7 +215,7 @@ def _build_overview_sheet(ws, rows: list[dict]):
     """总体对比：行=任务，列分四组（准确率/耗时/Token均值/CoT均值），每组各模型一列。"""
     ws.title = "总体对比"
     models = _uniq((r["model_id"], r["model_name"] or str(r["model_id"])) for r in rows)
-    tasks = _uniq((r["task_id"], r["task_key"] or str(r["task_id"])) for r in rows)
+    tasks = _uniq((r["task_id"], r.get("task_display_name") or r["task_key"] or str(r["task_id"])) for r in rows)
     idx = {(r["model_id"], r["task_id"]): r for r in rows}
 
     groups = [
@@ -268,7 +269,7 @@ def _build_detail_sheet(ws, rows: list[dict]):
         tk = r.get("token") or {}
         vals = [
             r["model_name"] or r["model_id"],
-            r["task_key"] or r["task_id"],
+            r.get("task_display_name") or r["task_key"] or r["task_id"],
             r["batch_name"] or r["batch_id"],
             r["version_label"] or "",
             r["status"],
@@ -285,7 +286,7 @@ def _build_detail_sheet(ws, rows: list[dict]):
 def _build_charts_html(title: str, rows: list[dict]) -> str:
     """生成单页 HTML，用 Chart.js CDN 渲染对比柱图 + 表格。"""
     labels = [
-        f"{r['model_name'] or r['model_id']} · {r['task_key'] or r['task_id']} · {r['version_label'] or ''}"
+        f"{r['model_name'] or r['model_id']} · {r.get('task_display_name') or r['task_key'] or r['task_id']} · {r['version_label'] or ''}"
         for r in rows
     ]
     accuracies = [r["accuracy"] if r["accuracy"] is not None else 0 for r in rows]
@@ -298,7 +299,7 @@ def _build_charts_html(title: str, rows: list[dict]) -> str:
     }, ensure_ascii=False)
 
     table_rows_html = "".join(
-        f"<tr><td>{r['model_name'] or ''}</td><td>{r['task_key'] or ''}</td>"
+        f"<tr><td>{r['model_name'] or ''}</td><td>{r.get('task_display_name') or r['task_key'] or ''}</td>"
         f"<td>{r['batch_name'] or ''}</td><td>{r['version_label'] or ''}</td>"
         f"<td>{r['status']}</td>"
         f"<td>{r['accuracy'] if r['accuracy'] is not None else '—'}</td>"
@@ -474,7 +475,7 @@ def _readme(title: str, view_id: int | None, rows: list[dict]) -> str:
         f"由测评分析（{source}）导出于 {datetime.utcnow().isoformat()}。\n\n"
         f"包含 {len(rows)} 条 evaluation：\n\n"
         + "\n".join(
-            f"- eval#{r['evaluation_id']} · {r['model_name']} · {r['task_key']} "
+            f"- eval#{r['evaluation_id']} · {r['model_name']} · {r.get('task_display_name') or r['task_key']} "
             f"· {r['version_label']} · accuracy={r['accuracy']}"
             for r in rows
         )
