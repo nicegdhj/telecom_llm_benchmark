@@ -103,8 +103,7 @@ def seed_custom_tasks(session: Session, task_nums: list[int]):
         alias = TASK_META.get(key, {}).get("alias", f"Custom Task {num}")
         existing = session.query(Task).filter_by(key=key).first()
         if existing:
-            if not existing.default_data_rel_path:
-                existing.default_data_rel_path = path
+            existing.default_data_rel_path = path
             existing.display_name = alias
             existing.is_llm_judge = _detect_is_llm_judge(key)
             continue
@@ -120,18 +119,21 @@ def seed_custom_tasks(session: Session, task_nums: list[int]):
 
 
 def seed_init_versions(session: Session):
-    """为每个任务挂载 tag=init 的初始数据版本（幂等）。
+    """为每个任务挂载/更新 tag=init 的初始数据版本。
 
     init 是逻辑指针：真实数据由 ais_bench 算子容器在评测时读取，后端容器未必能
     访问到数据文件（通用数据集打包在计算镜像内），故不校验本地文件是否存在，
     保证 dev / 本地 docker / 私域三处行为一致。
     若任务已存在用户设定的默认版本，则 init 不抢默认。
+    已有 init 版本时也更新 data_path，确保升级后路径正确。
     """
     for task in session.query(Task).all():
         rel = TASK_DATA_PATH.get(task.key) or task.default_data_rel_path
         if not rel:
             continue
-        if session.query(DatasetVersion).filter_by(task_id=task.id, tag="init").first():
+        existing_init = session.query(DatasetVersion).filter_by(task_id=task.id, tag="init").first()
+        if existing_init:
+            existing_init.data_path = rel
             continue
         has_default = (
             session.query(DatasetVersion)
