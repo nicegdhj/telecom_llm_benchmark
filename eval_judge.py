@@ -233,20 +233,19 @@ def run_eval_for_task(
 def _parse_eval_result(work_dir: Path, suite: str) -> tuple:
     """从评测产出中解析准确率和样本数。
 
+    只提取 accuracy 和 llm_judge_percentage 作为准确率指标，忽略其他辅助指标。
+    多子任务时用加权平均（Σ(各子类正确数) / Σ(各子类总数)）。
+
     Returns:
         (accuracy: float | None, num_samples: int | None)
     """
-    accuracy = None
-    num_samples = None
+    _ALLOWED_METRICS = ("accuracy", "llm_judge_percentage")
 
-    # 从 summary 解析准确率
-    # CSV 格式：dataset,version,metric,mode,score[,score2...]
-    # 排除解析率、字段得分、幻觉率等辅助指标，只保留主评分指标
-    _EXCLUDED_METRIC_PREFIXES = (
-        "parse_success_rate",
-        "field_",
-        "hallucination_rate",
-    )
+    # 按子任务收集 (score, num_samples)
+    subtask_scores = {}   # dataset_name -> score(float)
+    subtask_samples = {}  # dataset_name -> num_samples(int)
+
+    # 1. 从 summary CSV 提取每个子任务的准确率（只保留 accuracy / llm_judge_percentage）
     for summary_path in work_dir.glob("summary/summary_*.txt"):
         try:
             text = summary_path.read_text(encoding="utf-8")
@@ -256,62 +255,95 @@ def _parse_eval_result(work_dir: Path, suite: str) -> tuple:
                 if line.strip() == "csv format":
                     csv_start = idx
                     break
-
             if csv_start == -1:
                 continue
 
-            total_acc = 0.0
-            valid_count = 0
             for i in range(csv_start + 3, len(lines)):
                 if lines[i].startswith("$") or not lines[i].strip():
                     break
                 parts = lines[i].strip().split(",")
                 if len(parts) >= 5:
+                    dataset = parts[0].strip()
                     metric_name = parts[2].strip()
-                    if not metric_name.startswith(_EXCLUDED_METRIC_PREFIXES):
+                    if metric_name in _ALLOWED_METRICS and dataset not in subtask_scores:
                         try:
-                            total_acc += float(parts[-1])
-                            valid_count += 1
+                            subtask_scores[dataset] = float(parts[-1])
                         except (ValueError, TypeError):
                             pass
-
-            if valid_count > 0:
-                accuracy = round(total_acc / valid_count, 2)
         except Exception:
             pass
 
-    # 兜底：summary 缺失时，从各子任务结果 JSON 文件恢复得分（简单平均）
-    # 适用场景：ais_bench eval 写完各子任务结果后在 summary 阶段挂起被 kill
+    # 2. 从 details.jsonl 统计每个子任务的样本数
+    for details_file in (work_dir / "results").glob("**/*_details.jsonl"):
+        dataset_name = details_file.stem.replace("_details", "")
+        try:
+            subtask_samples[dataset_name] = sum(
+                1 for _ in open(details_file, "r", encoding="utf-8")
+            )
+        except Exception:
+            pass
+
+    # 3. 计算加权平均：Σ(score_i / 100 × samples_i) / Σ(samples_i) × 100
+    total_correct = 0.0
+    total_samples = 0
+    for ds, score in subtask_scores.items():
+        samples = subtask_samples.get(ds, 0)
+        if samples > 0:
+            total_correct += score / 100.0 * samples
+            total_samples += samples
+
+    if total_samples > 0:
+        accuracy = round(total_correct / total_samples * 100, 2)
+    elif subtask_scores:
+        # 没有 samples 信息时退化为简单平均
+        scores = list(subtask_scores.values())
+        accuracy = round(sum(scores) / len(scores), 2)
+    else:
+        accuracy = None
+
+    # 4. 兜底：summary 缺失时，从各子任务结果 JSON 文件恢复
     if accuracy is None:
         score_files = [
             f for f in (work_dir / "results").glob("**/*.json")
             if not f.name.endswith("_details.json")
         ]
-        subtask_scores = []
         for jf in score_files:
             try:
                 data = json.loads(jf.read_text(encoding="utf-8"))
                 if "error" in data:
                     continue
-                score = data.get("accuracy", data.get("score"))
+                score = (
+                    data.get("accuracy")
+                    or data.get("llm_judge_percentage")
+                    or data.get("score")
+                )
                 if isinstance(score, (int, float)):
-                    subtask_scores.append(float(score))
+                    ds = jf.stem
+                    subtask_scores[ds] = float(score)
+                    # 统计对应 details 文件行数
+                    details_file = jf.parent / f"{ds}_details.jsonl"
+                    if details_file.exists():
+                        subtask_samples[ds] = sum(
+                            1 for _ in open(details_file, "r", encoding="utf-8")
+                        )
             except Exception:
                 pass
+
         if subtask_scores:
-            accuracy = round(sum(subtask_scores) / len(subtask_scores), 2)
+            total_correct = 0.0
+            total_samples = 0
+            for ds, score in subtask_scores.items():
+                samples = subtask_samples.get(ds, 0)
+                if samples > 0:
+                    total_correct += score / 100.0 * samples
+                    total_samples += samples
+            if total_samples > 0:
+                accuracy = round(total_correct / total_samples * 100, 2)
+            else:
+                scores = list(subtask_scores.values())
+                accuracy = round(sum(scores) / len(scores), 2)
 
-    # 从 results 的 details.jsonl 统计样本数
-    details_files = list((work_dir / "results").glob("**/*_details.jsonl"))
-    if details_files:
-        try:
-            num_samples = sum(
-                sum(1 for _ in open(f, "r", encoding="utf-8"))
-                for f in details_files
-            )
-        except Exception:
-            pass
-
+    num_samples = total_samples if total_samples > 0 else None
     return accuracy, num_samples
 
 
