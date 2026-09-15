@@ -952,6 +952,7 @@ export const TASK_DETAIL_META = {
       desc: "家客-知识理解，知识理解。",
       fields: { input: "输入问题", output: "参考答案" },
     },
+    demo: { input: { input: "（示例数据）" }, output: "（参考答案）" },
     accuracy: {
       formula: "Score = judge_score 均值",
       desc: "TelecomLLMJudgeEvaluator 依据事实准确性、专业性和完整性进行语义评分。",
@@ -965,6 +966,7 @@ export const TASK_DETAIL_META = {
       desc: "集客-知识理解，知识理解。",
       fields: { input: "输入问题", output: "参考答案" },
     },
+    demo: { input: { input: "（示例数据）" }, output: "（参考答案）" },
     accuracy: {
       formula: "Score = judge_score 均值",
       desc: "TelecomLLMJudgeEvaluator 依据事实准确性、专业性和完整性进行语义评分。",
@@ -978,6 +980,7 @@ export const TASK_DETAIL_META = {
       desc: "个人业务-参数提取，参数提取。",
       fields: { input: "输入问题", output: "参考答案" },
     },
+    demo: { input: { input: "（示例数据）" }, output: "（参考答案）" },
     accuracy: {
       formula: "Score = judge_score 均值",
       desc: "TelecomLLMJudgeEvaluator 依据事实准确性、专业性和完整性进行语义评分。",
@@ -991,6 +994,7 @@ export const TASK_DETAIL_META = {
       desc: "监控排障-参数提取，参数提取。",
       fields: { input: "输入问题", output: "参考答案" },
     },
+    demo: { input: { input: "（示例数据）" }, output: "（参考答案）" },
     accuracy: {
       formula: "Score = judge_score 均值",
       desc: "TelecomLLMJudgeEvaluator 依据事实准确性、专业性和完整性进行语义评分。",
@@ -1004,6 +1008,7 @@ export const TASK_DETAIL_META = {
       desc: "个人业务-自主规划，自主规划。",
       fields: { input: "输入问题", output: "参考答案" },
     },
+    demo: { input: { input: "（示例数据）" }, output: "（参考答案）" },
     accuracy: {
       formula: "Score = judge_score 均值",
       desc: "TelecomLLMJudgeEvaluator 依据事实准确性、专业性和完整性进行语义评分。",
@@ -1017,6 +1022,7 @@ export const TASK_DETAIL_META = {
       desc: "代维-自主规划，自主规划。",
       fields: { input: "输入问题", output: "参考答案" },
     },
+    demo: { input: { input: "（示例数据）" }, output: "（参考答案）" },
     accuracy: {
       formula: "Score = judge_score 均值",
       desc: "TelecomLLMJudgeEvaluator 依据事实准确性、专业性和完整性进行语义评分。",
@@ -1030,6 +1036,7 @@ export const TASK_DETAIL_META = {
       desc: "监控排障-自主规划，自主规划。",
       fields: { input: "输入问题", output: "参考答案" },
     },
+    demo: { input: { input: "（示例数据）" }, output: "（参考答案）" },
     accuracy: {
       formula: "Score = judge_score 均值",
       desc: "TelecomLLMJudgeEvaluator 依据事实准确性、专业性和完整性进行语义评分。",
@@ -1043,6 +1050,7 @@ export const TASK_DETAIL_META = {
       desc: "网络投诉-自主规划，自主规划。",
       fields: { input: "输入问题", output: "参考答案" },
     },
+    demo: { input: { input: "（示例数据）" }, output: "（参考答案）" },
     accuracy: {
       formula: "Score = judge_score 均值",
       desc: "TelecomLLMJudgeEvaluator 依据事实准确性、专业性和完整性进行语义评分。",
@@ -1056,6 +1064,7 @@ export const TASK_DETAIL_META = {
       desc: "资源管理-自主规划，自主规划。",
       fields: { input: "输入问题", output: "参考答案" },
     },
+    demo: { input: { input: "（示例数据）" }, output: "（参考答案）" },
     accuracy: {
       formula: "Score = judge_score 均值",
       desc: "TelecomLLMJudgeEvaluator 依据事实准确性、专业性和完整性进行语义评分。",
@@ -1069,6 +1078,7 @@ export const TASK_DETAIL_META = {
       desc: "个人业务-诊断分析，诊断分析。",
       fields: { input: "输入问题", output: "参考答案" },
     },
+    demo: { input: { input: "（示例数据）" }, output: "（参考答案）" },
     accuracy: {
       formula: "Score = judge_score 均值",
       desc: "TelecomLLMJudgeEvaluator 依据事实准确性、专业性和完整性进行语义评分。",
@@ -1082,6 +1092,7 @@ export const TASK_DETAIL_META = {
       desc: "代维-诊断分析，诊断分析。",
       fields: { input: "输入问题", output: "参考答案" },
     },
+    demo: { input: { input: "（示例数据）" }, output: "（参考答案）" },
     accuracy: {
       formula: "Score = judge_score 均值",
       desc: "TelecomLLMJudgeEvaluator 依据事实准确性、专业性和完整性进行语义评分。",
@@ -1095,6 +1106,7 @@ export const TASK_DETAIL_META = {
       desc: "传输网-诊断分析，诊断分析。",
       fields: { input: "输入问题", output: "参考答案" },
     },
+    demo: { input: { input: "（示例数据）" }, output: "（参考答案）" },
     accuracy: {
       formula: "Score = judge_score 均值",
       desc: "TelecomLLMJudgeEvaluator 依据事实准确性、专业性和完整性进行语义评分。",
@@ -1108,6 +1120,7 @@ export const TASK_DETAIL_META = {
       desc: "基础保障-诊断分析，诊断分析。",
       fields: { input: "输入问题", output: "参考答案" },
     },
+    demo: { input: { input: "（示例数据）" }, output: "（参考答案）" },
     accuracy: {
       formula: "Score = judge_score 均值",
       desc: "TelecomLLMJudgeEvaluator 依据事实准确性、专业性和完整性进行语义评分。",
@@ -1121,6 +1134,7 @@ export const TASK_DETAIL_META = {
       desc: "核心网-诊断分析，诊断分析。",
       fields: { input: "输入问题", output: "参考答案" },
     },
+    demo: { input: { input: "（示例数据）" }, output: "（参考答案）" },
     accuracy: {
       formula: "Score = judge_score 均值",
       desc: "TelecomLLMJudgeEvaluator 依据事实准确性、专业性和完整性进行语义评分。",
@@ -1134,6 +1148,7 @@ export const TASK_DETAIL_META = {
       desc: "监控排障-诊断分析，诊断分析。",
       fields: { input: "输入问题", output: "参考答案" },
     },
+    demo: { input: { input: "（示例数据）" }, output: "（参考答案）" },
     accuracy: {
       formula: "Score = judge_score 均值",
       desc: "TelecomLLMJudgeEvaluator 依据事实准确性、专业性和完整性进行语义评分。",
@@ -1147,6 +1162,7 @@ export const TASK_DETAIL_META = {
       desc: "资源管理-诊断分析，诊断分析。",
       fields: { input: "输入问题", output: "参考答案" },
     },
+    demo: { input: { input: "（示例数据）" }, output: "（参考答案）" },
     accuracy: {
       formula: "Score = judge_score 均值",
       desc: "TelecomLLMJudgeEvaluator 依据事实准确性、专业性和完整性进行语义评分。",
@@ -1160,6 +1176,7 @@ export const TASK_DETAIL_META = {
       desc: "核心网-意图识别-参数提取，意图识别。",
       fields: { input: "输入问题", output: "参考答案" },
     },
+    demo: { input: { input: "（示例数据）" }, output: "（参考答案）" },
     accuracy: {
       formula: "Score = judge_score 均值",
       desc: "TelecomLLMJudgeEvaluator 依据事实准确性、专业性和完整性进行语义评分。",
@@ -1173,6 +1190,7 @@ export const TASK_DETAIL_META = {
       desc: "入口智能体-测试集，入口智能体。",
       fields: { input: "输入问题", output: "参考答案" },
     },
+    demo: { input: { input: "（示例数据）" }, output: "（参考答案）" },
     accuracy: {
       formula: "Score = judge_score 均值",
       desc: "TelecomLLMJudgeEvaluator 依据事实准确性、专业性和完整性进行语义评分。",
@@ -1186,6 +1204,7 @@ export const TASK_DETAIL_META = {
       desc: "安全-诊断分析，诊断分析。",
       fields: { input: "输入问题", output: "参考答案" },
     },
+    demo: { input: { input: "（示例数据）" }, output: "（参考答案）" },
     accuracy: {
       formula: "Score = judge_score 均值",
       desc: "TelecomLLMJudgeEvaluator 依据事实准确性、专业性和完整性进行语义评分。",
@@ -1199,6 +1218,7 @@ export const TASK_DETAIL_META = {
       desc: "家客-意图识别+信息提取，意图识别。",
       fields: { input: "输入问题", output: "参考答案" },
     },
+    demo: { input: { input: "（示例数据）" }, output: "（参考答案）" },
     accuracy: {
       formula: "Score = judge_score 均值",
       desc: "TelecomLLMJudgeEvaluator 依据事实准确性、专业性和完整性进行语义评分。",
@@ -1212,6 +1232,7 @@ export const TASK_DETAIL_META = {
       desc: "家客-意图识别-分类，意图识别。",
       fields: { input: "输入问题", output: "参考答案" },
     },
+    demo: { input: { input: "（示例数据）" }, output: "（参考答案）" },
     accuracy: {
       formula: "Score = judge_score 均值",
       desc: "TelecomLLMJudgeEvaluator 依据事实准确性、专业性和完整性进行语义评分。",
@@ -1225,6 +1246,7 @@ export const TASK_DETAIL_META = {
       desc: "家客-诊断分析，诊断分析。",
       fields: { input: "输入问题", output: "参考答案" },
     },
+    demo: { input: { input: "（示例数据）" }, output: "（参考答案）" },
     accuracy: {
       formula: "Score = judge_score 均值",
       desc: "TelecomLLMJudgeEvaluator 依据事实准确性、专业性和完整性进行语义评分。",
@@ -1238,6 +1260,7 @@ export const TASK_DETAIL_META = {
       desc: "网络投诉-信息提取，参数提取。",
       fields: { input: "输入问题", output: "参考答案" },
     },
+    demo: { input: { input: "（示例数据）" }, output: "（参考答案）" },
     accuracy: {
       formula: "Score = judge_score 均值",
       desc: "TelecomLLMJudgeEvaluator 依据事实准确性、专业性和完整性进行语义评分。",
@@ -1251,6 +1274,7 @@ export const TASK_DETAIL_META = {
       desc: "网络投诉-意图识别，意图识别。",
       fields: { input: "输入问题", output: "参考答案" },
     },
+    demo: { input: { input: "（示例数据）" }, output: "（参考答案）" },
     accuracy: {
       formula: "Score = judge_score 均值",
       desc: "TelecomLLMJudgeEvaluator 依据事实准确性、专业性和完整性进行语义评分。",
@@ -1264,6 +1288,7 @@ export const TASK_DETAIL_META = {
       desc: "集客-参数提取，参数提取。",
       fields: { input: "输入问题", output: "参考答案" },
     },
+    demo: { input: { input: "（示例数据）" }, output: "（参考答案）" },
     accuracy: {
       formula: "Score = judge_score 均值",
       desc: "TelecomLLMJudgeEvaluator 依据事实准确性、专业性和完整性进行语义评分。",
@@ -1277,6 +1302,7 @@ export const TASK_DETAIL_META = {
       desc: "集客-意图识别，意图识别。",
       fields: { input: "输入问题", output: "参考答案" },
     },
+    demo: { input: { input: "（示例数据）" }, output: "（参考答案）" },
     accuracy: {
       formula: "Score = judge_score 均值",
       desc: "TelecomLLMJudgeEvaluator 依据事实准确性、专业性和完整性进行语义评分。",
@@ -1290,6 +1316,7 @@ export const TASK_DETAIL_META = {
       desc: "集客-诊断分析，诊断分析。",
       fields: { input: "输入问题", output: "参考答案" },
     },
+    demo: { input: { input: "（示例数据）" }, output: "（参考答案）" },
     accuracy: {
       formula: "Score = judge_score 均值",
       desc: "TelecomLLMJudgeEvaluator 依据事实准确性、专业性和完整性进行语义评分。",
