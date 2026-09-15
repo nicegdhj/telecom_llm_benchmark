@@ -37,6 +37,14 @@ echo ""
 mkdir -p "$WORKSPACE_DIR"/{data,outputs,code}
 mkdir -p "$BACKEND_DATA_DIR"/{envs,logs}
 
+# ── 同步数据集到 workspace/data（复制，非软链，确保容器可访问）──────
+if [ -d "$PROJECT_DIR/data/custom_task" ]; then
+    mkdir -p "$WORKSPACE_DIR/data/custom_task"
+    # 用 rsync 增量同步（比 cp -r 快，且不覆盖已存在的新文件）
+    rsync -a --delete "$PROJECT_DIR/data/custom_task/" "$WORKSPACE_DIR/data/custom_task/" 2>/dev/null || \
+    cp -r "$PROJECT_DIR/data/custom_task/"* "$WORKSPACE_DIR/data/custom_task/" 2>/dev/null || true
+fi
+
 # ── 将 ais_bench 需要的代码文件软链到项目根目录 ──────────────────────
 #（符号链接使容器始终挂载最新源文件，无需手动同步）
 ln -sf "$PROJECT_DIR/eval_entry.py"  "$WORKSPACE_DIR/code/eval_entry.py"
