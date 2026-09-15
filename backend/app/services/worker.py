@@ -358,13 +358,20 @@ async def _run_eval(db: Session, job: Job, settings):
         # 评测必须与推理跑同一个固定 suite：custom 按 custom_task_num，generic 按 suite_name。
         run_task_type, _, run_suite_name = resolve_run_target(task)
 
+        # 从 batch 读取单任务测评数据量上限（与推理阶段保持一致）
+        eval_max_samples = None
+        if job.batch_id:
+            batch = db.get(Batch, job.batch_id)
+            if batch:
+                eval_max_samples = batch.max_samples_per_task or None
+
         cmd = build_eval_cmd(
             settings=settings, job_id=job.id, env_file=env_file,
             output_task_id=prediction.output_task_id,
             eval_version=eval_version,
             suite_name=run_suite_name,
             task_type=run_task_type,
-            max_samples=max_samples,
+            max_samples=eval_max_samples,
         )
 
         log_path = settings.logs_dir / f"task_{job.batch_id}_job_{job.id}.log"
