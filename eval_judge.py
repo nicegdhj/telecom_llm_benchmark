@@ -239,7 +239,7 @@ def _parse_eval_result(work_dir: Path, suite: str) -> tuple:
     Returns:
         (accuracy: float | None, num_samples: int | None)
     """
-    _ALLOWED_METRICS = ("accuracy", "llm_judge_percentage")
+    _ALLOWED_METRIC_KEYWORDS = ("accuracy", "llm_judge_percentage")
 
     # 按子任务收集 (score, num_samples)
     subtask_scores = {}   # dataset_name -> score(float)
@@ -265,7 +265,7 @@ def _parse_eval_result(work_dir: Path, suite: str) -> tuple:
                 if len(parts) >= 5:
                     dataset = parts[0].strip()
                     metric_name = parts[2].strip()
-                    if metric_name in _ALLOWED_METRICS and dataset not in subtask_scores:
+                    if any(kw in metric_name for kw in _ALLOWED_METRIC_KEYWORDS) and dataset not in subtask_scores:
                         try:
                             subtask_scores[dataset] = float(parts[-1])
                         except (ValueError, TypeError):
@@ -312,11 +312,14 @@ def _parse_eval_result(work_dir: Path, suite: str) -> tuple:
                 data = json.loads(jf.read_text(encoding="utf-8"))
                 if "error" in data:
                     continue
-                score = (
-                    data.get("accuracy")
-                    or data.get("llm_judge_percentage")
-                    or data.get("score")
-                )
+                # 从 data 中按关键词匹配提取准确率
+                score = None
+                for k, v in data.items():
+                    if any(kw in k for kw in _ALLOWED_METRIC_KEYWORDS) and isinstance(v, (int, float)):
+                        score = float(v)
+                        break
+                if score is None:
+                    score = data.get("score")
                 if isinstance(score, (int, float)):
                     ds = jf.stem
                     subtask_scores[ds] = float(score)
